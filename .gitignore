@@ -1,0 +1,9 @@
+.env
+.pixi/
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+outputs/
+*.egg-info/
+.DS_Store

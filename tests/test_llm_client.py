@@ -1,0 +1,97 @@
+"""Tests for LLM backend selection (auto/ollama/dashscope/deepseek), without
+hitting any network or real GPU detection. We reload the config/llm_client
+modules with patched env vars since `Settings` is a frozen dataclass
+populated at import time, and we monkeypatch `hardware.detect_gpu_memory_gb`
+to make "auto" resolution deterministic regardless of the machine running
+the tests.
+"""
+from __future__ import annotations
+
+import importlib
+
+
+def _reload_with_env(monkeypatch, **env):
+    for key in (
+        "LITSCRAPER_LLM_PROVIDER", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
+        "LITSCRAPER_DEEPSEEK_MODEL", "OLLAMA_BASE_URL", "LITSCRAPER_OLLAMA_MODEL",
+        "OLLAMA_API_KEY", "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL",
+        "LITSCRAPER_DASHSCOPE_MODEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    from litscraper import config as config_module
+    importlib.reload(config_module)
+    from litscraper.extraction import llm_client as llm_client_module
+    importlib.reload(llm_client_module)
+    return config_module, llm_client_module
+
+
+def test_defaults_to_auto(monkeypatch):
+    config_module, _ = _reload_with_env(monkeypatch)
+    assert config_module.settings.llm_provider == "auto"
+
+
+def test_auto_resolves_to_dashscope_without_a_large_gpu(monkeypatch):
+    config_module, llm_client_module = _reload_with_env(
+        monkeypatch, DASHSCOPE_API_KEY="sk-test"
+    )
+    monkeypatch.setattr(llm_client_module.hardware, "detect_gpu_memory_gb", lambda: 0.0)
+    assert llm_client_module.resolved_provider() == "dashscope"
+    client = llm_client_module.get_client()
+    assert client is not None
+    assert llm_client_module._model_name() == config_module.settings.dashscope_model
+
+
+def test_auto_resolves_to_ollama_with_a_large_gpu(monkeypatch):
+    _, llm_client_module = _reload_with_env(monkeypatch)
+    monkeypatch.setattr(llm_client_module.hardware, "detect_gpu_memory_gb", lambda: 80.0)
+    assert llm_client_module.resolved_provider() == "ollama"
+    client = llm_client_module.get_client()
+    assert client is not None
+    # 80GB falls in the "single H100/H200" tier.
+    assert llm_client_module._model_name() == "qwen3:32b"
+
+
+def test_explicit_ollama_provider_via_env(monkeypatch):
+    config_module, llm_client_module = _reload_with_env(
+        monkeypatch, LITSCRAPER_LLM_PROVIDER="ollama", LITSCRAPER_OLLAMA_MODEL="qwen3:32b"
+    )
+    assert config_module.settings.llm_provider == "ollama"
+    client = llm_client_module.get_client()
+    assert client is not None
+    assert llm_client_module._model_name() == "qwen3:32b"
+
+
+def test_deepseek_provider_requires_api_key(monkeypatch):
+    config_module, llm_client_module = _reload_with_env(
+        monkeypatch, LITSCRAPER_LLM_PROVIDER="deepseek", DEEPSEEK_API_KEY=""
+    )
+    assert not config_module.settings.deepseek_api_key
+    try:
+        llm_client_module.get_client()
+        assert False, "expected RuntimeError for missing DEEPSEEK_API_KEY"
+    except RuntimeError as exc:
+        assert "DEEPSEEK_API_KEY" in str(exc)
+
+
+def test_dashscope_provider_requires_api_key(monkeypatch):
+    config_module, llm_client_module = _reload_with_env(
+        monkeypatch, LITSCRAPER_LLM_PROVIDER="dashscope", DASHSCOPE_API_KEY=""
+    )
+    assert not config_module.settings.dashscope_api_key
+    try:
+        llm_client_module.get_client()
+        assert False, "expected RuntimeError for missing DASHSCOPE_API_KEY"
+    except RuntimeError as exc:
+        assert "DASHSCOPE_API_KEY" in str(exc)
+
+
+def test_unknown_provider_raises(monkeypatch):
+    _, llm_client_module = _reload_with_env(monkeypatch, LITSCRAPER_LLM_PROVIDER="bogus")
+    try:
+        llm_client_module.get_client()
+        assert False, "expected ValueError for unknown provider"
+    except ValueError as exc:
+        assert "bogus" in str(exc)

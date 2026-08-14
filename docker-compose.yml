@@ -1,0 +1,9 @@
+services:
+  grobid:
+    image: grobid/grobid:0.8.1
+    container_name: litscraper-grobid
+    ports:
+      - "8070:8070"
+    environment:
+      - JAVA_OPTS=-Xmx4g
+    restart: unless-stopped

@@ -1,0 +1,94 @@
+"""Adsorption-measurement extraction schema.
+
+Ported field-for-field from the original project's
+`patent_EVA_ldh_batch_pipeline_adsorption_simplified.py` schema, so the new
+pipeline's adsorption CSV stays compatible with that exact data model
+(study abstract/DOI, synthesis conditions, composition ratios/doping,
+impregnation, and per-condition adsorption measurements including gas
+composition and wet/dry air).
+"""
+from __future__ import annotations
+
+from typing import Optional
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class AdsorptionStudyMetadata(BaseModel):
+    doi: Optional[str] = Field(default=None, description="DOI identifier")
+    abstract: Optional[str] = Field(default=None, description="Study abstract text")
+
+
+class AdsorptionSynthesisMethod(BaseModel):
+    method_name: Optional[str] = Field(default=None, description="Synthesis method (co-precipitation, hydrothermal, etc.)")
+    metal_precursors: list[str] = Field(default_factory=list, description="List of metal precursors used (e.g., ['MgCl2', 'Zn(NO3)2', 'AlCl3'])")
+    temperature: Optional[float] = Field(default=None, description="Synthesis temperature")
+    temperature_units: Optional[str] = Field(default=None, description="Units for synthesis temperature")
+    ph: Optional[float] = Field(default=None, description="pH during synthesis")
+    aging_time_hr: Optional[float] = Field(default=None, description="Aging time if applicable")
+    exfoliation: Optional[bool] = Field(default=None, description="Exfoliation step (True/False)")
+    calcination_temp_c: Optional[float] = Field(default=None, description="Calcination temperature in Celsius")
+
+    @field_validator("metal_precursors", mode="before")
+    @classmethod
+    def _coerce_metal_precursors(cls, v):
+        return [] if v is None else v
+
+
+class AdsorptionMaterialProperties(BaseModel):
+    m2_metals_doping: list[str] = Field(default_factory=list, description="List of doped M2+ metals (e.g., ['Pt 0.1'])")
+    m2_metals_ratios: list[str] = Field(default_factory=list, description="List of ratios of each M2+ metal (e.g., ['Mg 3', 'Zn 0.5'])")
+    m3_metals_ratios: list[str] = Field(default_factory=list, description="List of ratios of each M3+ metal (e.g., ['Al 1', 'Fe 0.5'])")
+    m2_m3_ratio: Optional[float] = Field(default=None, description="Overall M2+/M3+ ratio")
+    anions: list[str] = Field(default_factory=list, description="List of anions (e.g., ['CO3', 'NO3'])")
+    impregnation: Optional[bool] = Field(default=None, description="True if the material was impregnated with a polymer or compound, False otherwise")
+    impregnation_compound: Optional[str] = Field(default=None, description="Name of the compound or polymer used for impregnation, if applicable")
+
+    @field_validator("m2_metals_doping", "m2_metals_ratios", "m3_metals_ratios", "anions", mode="before")
+    @classmethod
+    def _coerce_list(cls, v):
+        return [] if v is None else v
+
+
+class AdsorptionMeasurement(BaseModel):
+    adsorption_temperature_c: Optional[float] = Field(default=None, description="Adsorption temperature in C")
+    pressure_bar: Optional[float] = Field(default=None, description="Pressure in bar during adsorption test")
+    gas_composition: Optional[str] = Field(default=None, description="Gas composition used in adsorption test")
+    wet_dry_air: Optional[bool] = Field(default=None, description="True if air is wet or contains humidity, False if dry air, None if not specified")
+    co2_adsorption_capacity_mmol_g: Optional[float] = Field(default=None, description="CO2 adsorption capacity in mmol/g")
+
+
+class AdsorptionMaterial(BaseModel):
+    study_metadata: AdsorptionStudyMetadata = Field(default_factory=AdsorptionStudyMetadata)
+    synthesis_method: AdsorptionSynthesisMethod = Field(default_factory=AdsorptionSynthesisMethod)
+    material_properties: AdsorptionMaterialProperties = Field(default_factory=AdsorptionMaterialProperties)
+    adsorption_measurements: list[AdsorptionMeasurement] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_nested_defaults(cls, data):
+        if not isinstance(data, dict):
+            return data
+        if data.get("study_metadata") is None:
+            data["study_metadata"] = {}
+        if data.get("synthesis_method") is None:
+            data["synthesis_method"] = {}
+        if data.get("material_properties") is None:
+            data["material_properties"] = {}
+        return data
+
+    @field_validator("adsorption_measurements", mode="before")
+    @classmethod
+    def _coerce_measurements(cls, v):
+        return [] if v is None else v
+
+
+class AdsorptionExtractionResult(BaseModel):
+    """Top-level object the LLM is asked to return for a single paper's adsorption data."""
+
+    materials: list[AdsorptionMaterial] = Field(default_factory=list, description="Every distinct LDH adsorption material reported in the paper")
+
+    @field_validator("materials", mode="before")
+    @classmethod
+    def _coerce_materials(cls, v):
+        return [] if v is None else v
