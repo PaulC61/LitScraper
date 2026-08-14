@@ -48,6 +48,15 @@ automatically:
 Override the guess with `GPU=1`/`GPU=0` (and `PIXI_IMAGE_TAG=...` to pin an
 exact tag) before running the build script if needed.
 
+**Selecting a GPU on a shared 8-GPU server:** set `GPU_DEVICE=3` (or
+`GPU_DEVICE=2,3` for multiple) before running `./.devcontainer/build` to
+pin the container to specific GPU indices (`--gpus device=...` instead of
+`--gpus all`); it also falls back to `LITSCRAPER_GPU_DEVICE`/
+`CUDA_VISIBLE_DEVICES` if already exported. Once inside the container, set
+the same value as `LITSCRAPER_GPU_DEVICE` in `.env` so hardware detection
+and Qwen3 model-sizing only look at that GPU, and `export
+CUDA_VISIBLE_DEVICES=3` before `ollama serve` so Ollama itself only uses it.
+
 **Quick start:**
 1. SSH into the target machine (or open the folder locally on your Mac) and
    open this repo in VS Code.
@@ -103,6 +112,12 @@ H100/H200 server without editing code. Set `LITSCRAPER_LLM_PROVIDER` in
   ollama pull qwen3:32b   # substitute the tag hardware.py reports
   ollama serve            # if not already running as a service
   ```
+  On a shared server with GPUs 0-7, set `LITSCRAPER_GPU_DEVICE=3` (or
+  `2,3` for several) in `.env` so detection/sizing only considers that
+  GPU, and `export CUDA_VISIBLE_DEVICES=3` before `ollama serve` so Ollama
+  itself is pinned to the same one(s) — otherwise Ollama may schedule
+  onto whichever GPU it likes and sizing may assume more memory than
+  you've actually been allocated.
 
 Qwen3 is used for both backends because it has reliable native
 tool-calling support, which `instructor` uses in `TOOLS` mode for strong

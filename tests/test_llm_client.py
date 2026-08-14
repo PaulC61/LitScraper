@@ -15,7 +15,7 @@ def _reload_with_env(monkeypatch, **env):
         "LITSCRAPER_LLM_PROVIDER", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "LITSCRAPER_DEEPSEEK_MODEL", "OLLAMA_BASE_URL", "LITSCRAPER_OLLAMA_MODEL",
         "OLLAMA_API_KEY", "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL",
-        "LITSCRAPER_DASHSCOPE_MODEL",
+        "LITSCRAPER_DASHSCOPE_MODEL", "LITSCRAPER_GPU_DEVICE", "CUDA_VISIBLE_DEVICES",
     ):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
@@ -37,7 +37,7 @@ def test_auto_resolves_to_dashscope_without_a_large_gpu(monkeypatch):
     config_module, llm_client_module = _reload_with_env(
         monkeypatch, DASHSCOPE_API_KEY="sk-test"
     )
-    monkeypatch.setattr(llm_client_module.hardware, "detect_gpu_memory_gb", lambda: 0.0)
+    monkeypatch.setattr(llm_client_module.hardware, "detect_gpu_memory_gb", lambda device=None: 0.0)
     assert llm_client_module.resolved_provider() == "dashscope"
     client = llm_client_module.get_client()
     assert client is not None
@@ -46,7 +46,7 @@ def test_auto_resolves_to_dashscope_without_a_large_gpu(monkeypatch):
 
 def test_auto_resolves_to_ollama_with_a_large_gpu(monkeypatch):
     _, llm_client_module = _reload_with_env(monkeypatch)
-    monkeypatch.setattr(llm_client_module.hardware, "detect_gpu_memory_gb", lambda: 80.0)
+    monkeypatch.setattr(llm_client_module.hardware, "detect_gpu_memory_gb", lambda device=None: 80.0)
     assert llm_client_module.resolved_provider() == "ollama"
     client = llm_client_module.get_client()
     assert client is not None

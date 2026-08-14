@@ -41,7 +41,7 @@ from litscraper.config import settings
 
 def resolved_provider() -> str:
     """The concrete provider actually in effect, after resolving "auto"."""
-    return hardware.resolve_provider(settings.llm_provider)
+    return hardware.resolve_provider(settings.llm_provider, device=settings.gpu_device)
 
 
 def get_client() -> instructor.Instructor:
@@ -87,7 +87,7 @@ def get_client() -> instructor.Instructor:
 def _model_name(provider: str | None = None) -> str:
     provider = provider or resolved_provider()
     if provider == "ollama":
-        return settings.ollama_model or hardware.select_ollama_model()
+        return settings.ollama_model or hardware.select_ollama_model(device=settings.gpu_device)
     if provider == "dashscope":
         return settings.dashscope_model
     if provider == "deepseek":

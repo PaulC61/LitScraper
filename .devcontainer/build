@@ -21,7 +21,15 @@ fi
 
 if [ "$GPU" = "1" ]; then
     PIXI_IMAGE_TAG=${PIXI_IMAGE_TAG:-noble-cuda-12.8.1}
-    GPU_RUN_ARGS='"--gpus", "all",'
+    # Pin to specific GPU(s) on a shared multi-GPU server (e.g. an 8x
+    # H100/H200 box, indices 0-7): set GPU_DEVICE="3" or GPU_DEVICE="2,3"
+    # before running this script. Defaults to all GPUs if unset.
+    GPU_DEVICE=${GPU_DEVICE:-${LITSCRAPER_GPU_DEVICE:-${CUDA_VISIBLE_DEVICES:-}}}
+    if [ -n "$GPU_DEVICE" ]; then
+        GPU_RUN_ARGS="\"--gpus\", \"device=${GPU_DEVICE}\","
+    else
+        GPU_RUN_ARGS='"--gpus", "all",'
+    fi
 else
     PIXI_IMAGE_TAG=${PIXI_IMAGE_TAG:-0.41.4}
     GPU_RUN_ARGS=''

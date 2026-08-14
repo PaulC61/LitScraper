@@ -49,6 +49,14 @@ class Settings:
     )
     dashscope_model: str = os.environ.get("LITSCRAPER_DASHSCOPE_MODEL", "qwen3-235b-a22b")
 
+    # --- GPU selection (shared multi-GPU servers, e.g. an 8x H100/H200 box) ---
+    # Comma-separated GPU index/indices (e.g. "3" or "2,3") to pin both
+    # hardware detection/model-sizing and (if you export it before `ollama
+    # serve`) the actual Ollama process to specific GPU(s). Falls back to
+    # the standard CUDA_VISIBLE_DEVICES if set. Leave unset to use/detect
+    # all visible GPUs.
+    gpu_device: str | None = os.environ.get("LITSCRAPER_GPU_DEVICE") or os.environ.get("CUDA_VISIBLE_DEVICES") or None
+
     max_output_tokens: int = int(os.environ.get("LITSCRAPER_MAX_OUTPUT_TOKENS", "8192"))
     llm_max_retries: int = int(os.environ.get("LITSCRAPER_LLM_MAX_RETRIES", "3"))
 
