@@ -20,7 +20,7 @@ class AdsorptionStudyMetadata(BaseModel):
 
 
 class AdsorptionSynthesisMethod(BaseModel):
-    method_name: Optional[str] = Field(default=None, description="Synthesis method (co-precipitation, hydrothermal, etc.)")
+    method_name: list[str] = Field(default_factory=list, description="Ordered list of synthesis method steps (e.g., ['co-precipitation', 'exfoliation']) if the synthesis involved multiple steps")
     metal_precursors: list[str] = Field(default_factory=list, description="List of metal precursors used (e.g., ['MgCl2', 'Zn(NO3)2', 'AlCl3'])")
     temperature: Optional[float] = Field(default=None, description="Synthesis temperature")
     temperature_units: Optional[str] = Field(default=None, description="Units for synthesis temperature")
@@ -28,6 +28,13 @@ class AdsorptionSynthesisMethod(BaseModel):
     aging_time_hr: Optional[float] = Field(default=None, description="Aging time if applicable")
     exfoliation: Optional[bool] = Field(default=None, description="Exfoliation step (True/False)")
     calcination_temp_c: Optional[float] = Field(default=None, description="Calcination temperature in Celsius")
+
+    @field_validator("method_name", mode="before")
+    @classmethod
+    def _coerce_method_name(cls, v):
+        if v is None:
+            return []
+        return [v] if isinstance(v, str) else v
 
     @field_validator("metal_precursors", mode="before")
     @classmethod

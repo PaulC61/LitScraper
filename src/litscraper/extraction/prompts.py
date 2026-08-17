@@ -3,7 +3,7 @@
 CATALYST_EXTRACTION_PROMPT = """
 Extract detailed information about Layered Double Hydroxides (LDHs) used as catalysts for CO2 hydrogenation from the research paper.
 Focus on:
-1. Synthesis methods (co-precipitation, hydrothermal, etc.) with full conditions (temperature, time, pH, aging, calcination, reduction).
+1. Synthesis methods (co-precipitation, hydrothermal, etc.) with full conditions (temperature, time, pH, aging, calcination, reduction). If synthesis involves multiple sequential steps (e.g., co-precipitation followed by exfoliation), list every step in order, not just the last one.
 2. Metal compositions (M2+ and M3+ metals) and M2+/M3+ ratios.
 3. Catalytic test conditions: reaction temperature, pressure, H2/CO2 ratio, feed composition, space velocity (GHSV/WHSV), catalyst mass.
 4. Catalytic performance: CO2 conversion (%), selectivities to CO, CH4, methanol, and other products, yields, reaction rates, TOF.
@@ -49,7 +49,7 @@ Extract detailed information about Layered Double Hydroxides (LDHs) used for CO2
 
 Focus on:
 1. Study identity fields matching the adsorption table format: abstract and DOI.
-2. Material identity and synthesis: preparation method, calcination temperature.
+2. Material identity and synthesis: preparation method (list every step in order if synthesis involves multiple sequential steps, e.g., co-precipitation followed by exfoliation), calcination temperature.
 3. Material properties: metal composition ratios/doping (M2+, M3+), anions, and impregnation.
 4. Adsorption test conditions and outcomes: adsorption temperature, pressure, gas composition, and CO2 adsorption capacity.
 

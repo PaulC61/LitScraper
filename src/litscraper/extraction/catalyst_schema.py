@@ -21,7 +21,7 @@ class StudyMetadata(BaseModel):
 
 
 class SynthesisMethod(BaseModel):
-    method_name: Optional[str] = Field(default=None, description="Synthesis method (co-precipitation, hydrothermal, etc.)")
+    method_name: list[str] = Field(default_factory=list, description="Ordered list of synthesis method steps (e.g., ['co-precipitation', 'exfoliation']) if the synthesis involved multiple steps")
     metal_precursors: list[str] = Field(default_factory=list, description="List of metal precursors used (e.g., ['MgCl2', 'Zn(NO3)2', 'AlCl3'])")
     temperature: Optional[float] = Field(default=None, description="Synthesis temperature")
     temperature_units: Optional[str] = Field(default=None, description="Units for synthesis temperature")
@@ -31,6 +31,13 @@ class SynthesisMethod(BaseModel):
     calcination_temp: Optional[float] = Field(default=None, description="Calcination temperature")
     calcination_temp_units: Optional[str] = Field(default=None, description="Units for calcination temperature")
     reduction_pretreatment: Optional[str] = Field(default=None, description="Reduction conditions (e.g., '5% H2/Ar at 500C for 2h')")
+
+    @field_validator("method_name", mode="before")
+    @classmethod
+    def _coerce_method_name(cls, v):
+        if v is None:
+            return []
+        return [v] if isinstance(v, str) else v
 
     @field_validator("metal_precursors", mode="before")
     @classmethod
