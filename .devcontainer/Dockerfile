@@ -41,6 +41,19 @@ ARG USER_NAME
 RUN groupadd -f -g "${GROUP_ID}" "${GROUP_NAME}"
 RUN useradd -m -l -s /bin/bash -d /home/"${USER_NAME}" -u "${USER_ID}" -g "${GROUP_ID}" "${USER_NAME}" && \
     echo "${USER_NAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Docker CLI in this container talks to the host's docker.sock (bind-mounted
+# in), which is owned by whatever group owns it on the host (often "docker").
+# Join that group by GID so the user can access the socket without being
+# root; reuse an existing group if the GID is already taken.
+ARG DOCKER_GID
+RUN existing_group="$(getent group "${DOCKER_GID}" | cut -d: -f1)"; \
+    if [ -n "${existing_group}" ]; then \
+        usermod -aG "${existing_group}" "${USER_NAME}"; \
+    else \
+        groupadd -g "${DOCKER_GID}" docker && usermod -aG docker "${USER_NAME}"; \
+    fi
+
 USER "${USER_NAME}"
 
 CMD [ "tail", "-f", "/dev/null" ]

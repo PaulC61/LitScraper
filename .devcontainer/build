@@ -8,6 +8,19 @@ GROUP_ID=${GROUP_ID:-$(id -g)}
 GROUP_NAME=${GROUP_NAME:-$(id -gn)}
 USER_NAME=${USER_NAME:-$(whoami)}
 
+# The container's docker CLI talks to the *host's* docker.sock (mounted in),
+# so the in-container user needs to belong to a group with the same GID as
+# whatever group owns that socket on the host -- otherwise every docker
+# command fails with "permission denied while trying to connect to the
+# Docker API" even though the socket is bind-mounted correctly.
+if [ -z "${DOCKER_GID:-}" ]; then
+    if [ -S /var/run/docker.sock ]; then
+        DOCKER_GID=$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo 999)
+    else
+        DOCKER_GID=999
+    fi
+fi
+
 # GPU detection: an H100/H200 dev box has `nvidia-smi` available; a MacBook
 # doesn't. Override explicitly with GPU=1 or GPU=0 if auto-detection guesses
 # wrong (e.g. a GPU box whose driver isn't installed yet).
@@ -35,9 +48,10 @@ else
     GPU_RUN_ARGS=''
 fi
 
-export USER_ID GROUP_ID GROUP_NAME USER_NAME PIXI_IMAGE_TAG GPU_RUN_ARGS
+export USER_ID GROUP_ID GROUP_NAME USER_NAME PIXI_IMAGE_TAG GPU_RUN_ARGS DOCKER_GID
 
 echo "Using USER_ID: $USER_ID, GROUP_ID: $GROUP_ID, GROUP_NAME: $GROUP_NAME, USER_NAME: $USER_NAME"
 echo "GPU=$GPU -> PIXI_IMAGE_TAG=$PIXI_IMAGE_TAG"
+echo "DOCKER_GID: $DOCKER_GID"
 
-sed "s#\$USER_ID#$USER_ID#g; s#\$GROUP_ID#$GROUP_ID#g; s#\$GROUP_NAME#$GROUP_NAME#g; s#\$USER_NAME#$USER_NAME#g; s#\$PIXI_IMAGE_TAG#$PIXI_IMAGE_TAG#g; s#\$GPU_RUN_ARGS#$GPU_RUN_ARGS#g" < "$TEMPLATE_FILE" > "$OUTPUT_FILE"
+sed "s#\$USER_ID#$USER_ID#g; s#\$GROUP_ID#$GROUP_ID#g; s#\$GROUP_NAME#$GROUP_NAME#g; s#\$USER_NAME#$USER_NAME#g; s#\$PIXI_IMAGE_TAG#$PIXI_IMAGE_TAG#g; s#\$GPU_RUN_ARGS#$GPU_RUN_ARGS#g; s#\$DOCKER_GID#$DOCKER_GID#g" < "$TEMPLATE_FILE" > "$OUTPUT_FILE"

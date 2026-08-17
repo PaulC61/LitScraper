@@ -7,7 +7,8 @@
             "GROUP_ID": "$GROUP_ID",
             "GROUP_NAME": "$GROUP_NAME",
             "USER_NAME": "$USER_NAME",
-            "PIXI_IMAGE_TAG": "$PIXI_IMAGE_TAG"
+            "PIXI_IMAGE_TAG": "$PIXI_IMAGE_TAG",
+            "DOCKER_GID": "$DOCKER_GID"
         },
         "options": [
             "--tag=litscraperv2_$USER_NAME:latest"

@@ -3,11 +3,12 @@
     "build": {
         "dockerfile": "Dockerfile",
         "args": {
-            "USER_ID": "170937",
-            "GROUP_ID": "1003",
-            "GROUP_NAME": "ansatt",
+            "USER_ID": "502",
+            "GROUP_ID": "20",
+            "GROUP_NAME": "staff",
             "USER_NAME": "paulc",
-            "PIXI_IMAGE_TAG": "noble-cuda-12.8.1"
+            "PIXI_IMAGE_TAG": "0.41.4",
+            "DOCKER_GID": "999"
         },
         "options": [
             "--tag=litscraperv2_paulc:latest"
@@ -16,7 +17,7 @@
     "remoteUser": "paulc",
     "updateRemoteUserUID": true,
     "runArgs": [
-        "--gpus", "all",
+        
         "--add-host=host.docker.internal:host-gateway",
         "--name=litscraperv2_paulc"
     ],
