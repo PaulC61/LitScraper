@@ -15,6 +15,8 @@ import logging
 import sys
 from pathlib import Path
 
+from litscraper.config import settings
+from litscraper.extraction.batch_assessor import assess_adsorption_batch, assess_catalyst_batch
 from litscraper.extraction.extractor import extract_adsorption_from_text, extract_catalyst_from_text
 from litscraper.pdf_parsing.grobid_client import GrobidUnavailableError, is_alive, pdf_to_tei
 from litscraper.pdf_parsing.tei_parser import parse_tei
@@ -47,7 +49,12 @@ def process_pdf(pdf_path: Path) -> tuple[list, list]:
     text = document.to_llm_text()
     catalyst_result = extract_catalyst_from_text(text)
     adsorption_result = extract_adsorption_from_text(text)
-    return catalyst_result.LDH_materials, adsorption_result.materials
+    catalyst_materials = catalyst_result.LDH_materials
+    adsorption_materials = adsorption_result.materials
+    if settings.do_batch_assessment:
+        catalyst_materials = assess_catalyst_batch(catalyst_materials)
+        adsorption_materials = assess_adsorption_batch(adsorption_materials)
+    return catalyst_materials, adsorption_materials
 
 
 def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False) -> None:

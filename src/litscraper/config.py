@@ -74,6 +74,7 @@ class Settings:
     # under-counted, makes exactly one retry with explicit guidance. See
     # litscraper.extraction.completeness.
     do_completeness_check: bool = os.environ.get("LITSCRAPER_COMPLETENESS_CHECK", "true").lower() == "true"
+    do_batch_assessment: bool = os.environ.get("LITSCRAPER_BATCH_ASSESS", "true").lower() == "true"
     cache_dir: str = os.environ.get("LITSCRAPER_CACHE_DIR", ".cache")
 
 

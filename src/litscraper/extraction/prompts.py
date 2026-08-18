@@ -96,3 +96,40 @@ Source paper content:
 {document_text}
 ---
 """.strip()
+
+
+CATALYST_BATCH_ASSESSMENT_PROMPT = """
+You are the batch assessor for catalyst extraction records from ONE paper.
+The JSON batch below may contain multiple LLM views of the same
+material-condition-measurement triplet. Consolidate only those duplicates.
+
+Return the same schema with one best-supported record per unique triplet.
+For duplicates, retain the most complete directly reported values across the
+variants. Never invent values. Do not merge records that differ in material
+identity/composition, reaction condition (temperature, pressure, or feed),
+or measured performance. Preserve every genuinely distinct test condition.
+
+Extracted batch JSON:
+---
+{batch_json}
+---
+""".strip()
+
+
+ADSORPTION_BATCH_ASSESSMENT_PROMPT = """
+You are the batch assessor for adsorption extraction records from ONE paper.
+The JSON batch below may contain multiple LLM views of the same
+material-condition-measurement triplet. Consolidate only those duplicates.
+
+Return the same schema with one best-supported record per unique triplet.
+For duplicates, retain the most complete directly reported values across the
+variants. Never invent values. Do not merge records that differ in material
+identity/composition, adsorption condition (temperature, pressure, gas, or
+wet/dry state), or measured capacity. Preserve every genuinely distinct test
+condition.
+
+Extracted batch JSON:
+---
+{batch_json}
+---
+""".strip()

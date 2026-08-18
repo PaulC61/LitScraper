@@ -195,7 +195,12 @@ original project's separate catalyst/adsorption pipeline scripts): one using
 the catalyst-focused `LDHCatalysisStudy` schema, one using the `AdsorptionMaterial`
 schema. Each has its own prompt, its own optional row-level completeness
 check, and its own optional per-material verification pass, and writes to
-its own CSV.
+its own CSV. Before CSV writing, the optional per-paper **batch assessor**
+(`LITSCRAPER_BATCH_ASSESS=true`, default) compares all extracted records
+within that paper and consolidates near-duplicate material-condition-
+measurement variants into one best-supported record. It preserves genuinely
+distinct material compositions and test conditions; set the toggle to
+`false` to retain every raw extraction variant.
 
 **Row-level completeness check** (`LITSCRAPER_COMPLETENESS_CHECK=true`,
 default): a "row" is one material-measurement pair — one material tested
