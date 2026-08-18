@@ -65,45 +65,42 @@ class AdsorptionMeasurement(BaseModel):
     co2_adsorption_capacity_mmol_g: Optional[float] = Field(default=None, description="CO2 adsorption capacity in mmol/g")
 
 
-class AdsorptionMaterial(BaseModel):
+class AdsorptionExtractionRow(BaseModel):
+    """One complete material-condition-measurement triplet."""
+
     study_metadata: AdsorptionStudyMetadata = Field(default_factory=AdsorptionStudyMetadata)
     synthesis_method: AdsorptionSynthesisMethod = Field(default_factory=AdsorptionSynthesisMethod)
     material_properties: AdsorptionMaterialProperties = Field(default_factory=AdsorptionMaterialProperties)
-    adsorption_measurements: list[AdsorptionMeasurement] = Field(
-        default_factory=list,
-        description=(
-            "One entry per distinct adsorption condition this material was tested under "
-            "(e.g. each temperature/pressure/gas-composition row of a results table). If "
-            "the paper reports N conditions for this material, this list MUST have N "
-            "entries -- never collapse multiple conditions into a single entry."
-        ),
-    )
+    measurement: AdsorptionMeasurement = Field(default_factory=AdsorptionMeasurement)
 
     @model_validator(mode="before")
     @classmethod
     def _coerce_nested_defaults(cls, data):
         if not isinstance(data, dict):
             return data
-        if data.get("study_metadata") is None:
-            data["study_metadata"] = {}
-        if data.get("synthesis_method") is None:
-            data["synthesis_method"] = {}
-        if data.get("material_properties") is None:
-            data["material_properties"] = {}
+        for field_name in ("study_metadata", "synthesis_method", "material_properties", "measurement"):
+            if data.get(field_name) is None:
+                data[field_name] = {}
         return data
 
-    @field_validator("adsorption_measurements", mode="before")
+
+class AdsorptionExtractionRows(BaseModel):
+    """Flat extraction response: exactly one item per reported result row."""
+
+    rows: list[AdsorptionExtractionRow] = Field(
+        default_factory=list,
+        description=(
+            "Every distinct material-condition-measurement triplet in the paper. "
+            "Repeat material metadata in separate items when one material has "
+            "multiple adsorption conditions. Never put multiple measurements in "
+            "one item."
+        ),
+    )
+
+    @field_validator("rows", mode="before")
     @classmethod
-    def _coerce_measurements(cls, v):
-        return [] if v is None else v
+    def _coerce_rows(cls, value):
+        return [] if value is None else value
 
 
-class AdsorptionExtractionResult(BaseModel):
-    """Top-level object the LLM is asked to return for a single paper's adsorption data."""
 
-    materials: list[AdsorptionMaterial] = Field(default_factory=list, description="Every distinct LDH adsorption material reported in the paper")
-
-    @field_validator("materials", mode="before")
-    @classmethod
-    def _coerce_materials(cls, v):
-        return [] if v is None else v

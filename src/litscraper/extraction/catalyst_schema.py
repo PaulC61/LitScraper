@@ -71,46 +71,43 @@ class CatalyticPerformance(BaseModel):
     methanol_selectivity: Optional[float] = Field(default=None, description="Methanol selectivity (%)")
 
 
-class LDHCatalysisStudy(BaseModel):
+class CatalystExtractionRow(BaseModel):
+    """One complete material-condition-performance triplet."""
+
     material_id: Optional[str] = Field(default=None)
     study_metadata: StudyMetadata = Field(default_factory=StudyMetadata)
     synthesis_conditions: SynthesisMethod = Field(default_factory=SynthesisMethod)
     metal_composition: MetalComposition = Field(default_factory=MetalComposition)
-    catalytic_performances: list[CatalyticPerformance] = Field(
-        default_factory=list,
-        description=(
-            "One entry per distinct reaction condition this material was tested under "
-            "(e.g. each temperature/pressure/feed-ratio row of a results table). If the "
-            "paper reports N conditions for this material, this list MUST have N entries "
-            "-- never collapse multiple conditions into a single entry."
-        ),
-    )
+    performance: CatalyticPerformance = Field(default_factory=CatalyticPerformance)
 
     @model_validator(mode="before")
     @classmethod
     def _coerce_nested_defaults(cls, data):
         if not isinstance(data, dict):
             return data
-        if data.get("study_metadata") is None:
-            data["study_metadata"] = {}
-        if data.get("synthesis_conditions") is None:
-            data["synthesis_conditions"] = {}
-        if data.get("metal_composition") is None:
-            data["metal_composition"] = {}
+        for field_name in ("study_metadata", "synthesis_conditions", "metal_composition", "performance"):
+            if data.get(field_name) is None:
+                data[field_name] = {}
         return data
 
-    @field_validator("catalytic_performances", mode="before")
+
+class CatalystExtractionRows(BaseModel):
+    """Flat extraction response: exactly one item per reported result row."""
+
+    rows: list[CatalystExtractionRow] = Field(
+        default_factory=list,
+        description=(
+            "Every distinct material-condition-performance triplet in the paper. "
+            "Repeat material metadata in separate items when one material has "
+            "multiple reaction conditions. Never put multiple performances in "
+            "one item."
+        ),
+    )
+
+    @field_validator("rows", mode="before")
     @classmethod
-    def _coerce_performance_list(cls, v):
-        return [] if v is None else v
+    def _coerce_rows(cls, value):
+        return [] if value is None else value
 
 
-class StudiesInPaper(BaseModel):
-    """Top-level object the LLM is asked to return for a single paper's catalyst data."""
 
-    LDH_materials: list[LDHCatalysisStudy] = Field(default_factory=list)
-
-    @field_validator("LDH_materials", mode="before")
-    @classmethod
-    def _coerce_materials(cls, v):
-        return [] if v is None else v

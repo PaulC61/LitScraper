@@ -8,10 +8,7 @@ Focus on:
 3. Catalytic test conditions: reaction temperature, pressure, H2/CO2 ratio, feed composition, space velocity (GHSV/WHSV), catalyst mass.
 4. Catalytic performance: CO2 conversion (%), selectivities to CO, CH4, methanol, and other products, yields, reaction rates, TOF.
 
-Extract data for every distinct LDH material which receives a unique identifier (including different metal ratios and synthesis conditions).
-Be exhaustive and include all quantitative values with units. If no values are reported for a specific property, set it to null.
-
-IMPORTANT -- multi-row materials: many papers test the same material under several reaction conditions (e.g. a temperature-scan or pressure-scan table). In that case, `catalytic_performances` for that material MUST contain one entry per condition/row, not a single averaged or "most representative" entry. Scan every row of every results table and add a separate entry for each one, even if several rows share the same material.
+Return one `LDH_materials` entry for every material-condition-measurement triplet in the paper. For a results table with several rows, return several entries and repeat the material, synthesis, and composition metadata in each applicable entry. Never combine several test conditions into one entry. Be exhaustive and include all quantitative values with units. If no values are reported for a specific property, set it to null.
 
 Paper content (parsed from PDF via GROBID, includes both body text and tables):
 ---
@@ -35,7 +32,6 @@ Hard constraints to minimize hallucination:
 - Preserve the same material identity and output only one material in the exact schema.
 - Numeric fields must contain numbers only when directly supported by source text.
 - Lists must be empty lists when unknown (never null for list fields).
-- Do not drop or merge existing `catalytic_performances` entries: if the input JSON already lists N conditions, your output must still have at least N entries (add missing ones found in the source text, never collapse distinct conditions into one).
 
 Current material JSON:
 {material_json}
@@ -57,12 +53,10 @@ Focus on:
 4. Adsorption test conditions and outcomes: adsorption temperature, pressure, gas composition, and CO2 adsorption capacity.
 
 Extraction policy:
-- Extract every distinct LDH material and all reported adsorption-condition rows.
+- Return one `materials` entry for every material-condition-measurement triplet. For a results table with several rows, return several entries and repeat the material, synthesis, and composition metadata in each applicable entry.
 - Keep units aligned to the table columns: temperature in C, pressure in bar, capacity in mmol/g.
 - If a value is not explicitly reported in the paper, set it to null.
 - Avoid inference and do not invent values.
-
-IMPORTANT -- multi-row materials: many papers test the same material under several adsorption conditions (e.g. a temperature-scan or pressure-scan table). In that case, `adsorption_measurements` for that material MUST contain one entry per condition/row, not a single averaged or "most representative" entry. Scan every row of every results table and add a separate entry for each one, even if several rows share the same material.
 
 Paper content (parsed from PDF via GROBID, includes both body text and tables):
 ---
@@ -85,8 +79,6 @@ Hard constraints to minimize hallucination:
 - Do not infer from unrelated materials in the same paper.
 - Preserve the same material identity and output only one material in the exact schema.
 - Numeric fields must contain numbers only when directly supported by source text.
-- Output adsorption_measurements as an empty list when no measurement rows are explicitly reported.
-- Do not drop or merge existing `adsorption_measurements` entries: if the input JSON already lists N conditions, your output must still have at least N entries (add missing ones found in the source text, never collapse distinct conditions into one).
 
 Current extracted record (JSON):
 {material_json}
@@ -98,12 +90,86 @@ Source paper content:
 """.strip()
 
 
+CATALYST_FLAT_EXTRACTION_PROMPT = """
+Extract every reported LDH catalyst material-condition-performance result from
+the paper.
+
+Return a top-level `rows` list. Each list item MUST represent exactly one
+material-condition-performance triplet. Repeat the material's metadata in
+each item when the same material was tested under multiple conditions. Scan
+every table row and include every distinct temperature, pressure, feed
+composition, and performance result. Never put multiple performances in one
+item and never return only a representative condition.
+
+If a value is not explicitly reported, set it to null; lists must be empty
+when unknown. Do not invent or merge distinct conditions.
+
+Paper content:
+---
+{document_text}
+---
+""".strip()
+
+
+ADSORPTION_FLAT_EXTRACTION_PROMPT = """
+Extract every reported LDH adsorption material-condition-measurement result
+from the paper.
+
+Return a top-level `rows` list. Each list item MUST represent exactly one
+material-condition-measurement triplet. Repeat the material's metadata in
+each item when the same material was tested under multiple conditions. Scan
+every table row and include every distinct adsorption temperature, pressure,
+gas composition, wet/dry state, and capacity result. Never put multiple
+measurements in one item and never return only a representative condition.
+
+If a value is not explicitly reported, set it to null; lists must be empty
+when unknown. Do not invent or merge distinct conditions.
+
+Paper content:
+---
+{document_text}
+---
+""".strip()
+
+
+CATALYST_FLAT_VERIFICATION_PROMPT = """
+Verify this single catalyst material-condition-performance row against the
+source paper. Return exactly one row object, preserving its material and
+condition identity. Correct values only when directly supported by the text.
+Do not add another condition, merge rows, or invent values.
+
+Current row:
+{row_json}
+
+Source paper:
+---
+{document_text}
+---
+""".strip()
+
+
+ADSORPTION_FLAT_VERIFICATION_PROMPT = """
+Verify this single adsorption material-condition-measurement row against the
+source paper. Return exactly one row object, preserving its material and
+condition identity. Correct values only when directly supported by the text.
+Do not add another condition, merge rows, or invent values.
+
+Current row:
+{row_json}
+
+Source paper:
+---
+{document_text}
+---
+""".strip()
+
+
 CATALYST_BATCH_ASSESSMENT_PROMPT = """
 You are the batch assessor for catalyst extraction records from ONE paper.
 The JSON batch below may contain multiple LLM views of the same
 material-condition-measurement triplet. Consolidate only those duplicates.
 
-Return the same schema with one best-supported record per unique triplet.
+Return the same flat `rows` schema with one best-supported record per unique triplet.
 For duplicates, retain the most complete directly reported values across the
 variants. Never invent values. Do not merge records that differ in material
 identity/composition, reaction condition (temperature, pressure, or feed),
@@ -121,7 +187,7 @@ You are the batch assessor for adsorption extraction records from ONE paper.
 The JSON batch below may contain multiple LLM views of the same
 material-condition-measurement triplet. Consolidate only those duplicates.
 
-Return the same schema with one best-supported record per unique triplet.
+Return the same flat `rows` schema with one best-supported record per unique triplet.
 For duplicates, retain the most complete directly reported values across the
 variants. Never invent values. Do not merge records that differ in material
 identity/composition, adsorption condition (temperature, pressure, gas, or

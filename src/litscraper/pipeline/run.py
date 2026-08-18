@@ -24,8 +24,8 @@ from litscraper.pipeline.csv_writer import (
     ADSORPTION_FIELDNAMES,
     CATALYST_FIELDNAMES,
     append_rows,
-    material_to_adsorption_rows,
-    material_to_catalyst_rows,
+    extraction_row_to_adsorption_row,
+    extraction_row_to_catalyst_row,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -49,8 +49,8 @@ def process_pdf(pdf_path: Path) -> tuple[list, list]:
     text = document.to_llm_text()
     catalyst_result = extract_catalyst_from_text(text)
     adsorption_result = extract_adsorption_from_text(text)
-    catalyst_materials = catalyst_result.LDH_materials
-    adsorption_materials = adsorption_result.materials
+    catalyst_materials = catalyst_result.rows
+    adsorption_materials = adsorption_result.rows
     if settings.do_batch_assessment:
         catalyst_materials = assess_catalyst_batch(catalyst_materials)
         adsorption_materials = assess_adsorption_batch(adsorption_materials)
@@ -94,10 +94,16 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False) -> None:
             _save_manifest(manifest_path, manifest)
             continue
 
-        for material in catalyst_materials:
-            append_rows(catalyst_csv, CATALYST_FIELDNAMES, material_to_catalyst_rows(material))
-        for material in adsorption_materials:
-            append_rows(adsorption_csv, ADSORPTION_FIELDNAMES, material_to_adsorption_rows(material))
+        append_rows(
+            catalyst_csv,
+            CATALYST_FIELDNAMES,
+            [extraction_row_to_catalyst_row(row) for row in catalyst_materials],
+        )
+        append_rows(
+            adsorption_csv,
+            ADSORPTION_FIELDNAMES,
+            [extraction_row_to_adsorption_row(row) for row in adsorption_materials],
+        )
 
         manifest[key] = {
             "status": "ok",

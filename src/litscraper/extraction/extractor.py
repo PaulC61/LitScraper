@@ -16,112 +16,71 @@ contract ported from the experimentor-authored files -- see
 `catalyst_schema.py` (from `ldh_batch_pipeline_catalyst.py`) and
 `adsorption_schema.py` (from `patent_EVA_ldh_batch_pipeline_adsorption_simplified.py`).
 
-Each pass also runs an optional row-level completeness check (see
-`completeness.py`): a "row" is one material-measurement pair (one material
-under one test condition), and a material tested under several conditions
-must contribute one row per condition. The check counts rows against a
-single roster call and, if the first pass under-counted, makes exactly one
-retry with explicit guidance -- this catches the common failure mode where a
-multi-row results table only has its first/most prominent row extracted.
+Each extraction item is one material-condition-measurement triplet. This
+flat output shape makes every results-table row explicit, instead of asking
+the model to construct nested material-to-measurement lists.
 """
 from __future__ import annotations
 
 import logging
 
 from litscraper.config import settings
-from litscraper.extraction.adsorption_schema import AdsorptionExtractionResult, AdsorptionMaterial
-from litscraper.extraction.catalyst_schema import LDHCatalysisStudy, StudiesInPaper
-from litscraper.extraction.completeness import ensure_complete_rows
+from litscraper.extraction.adsorption_schema import AdsorptionExtractionRow, AdsorptionExtractionRows
+from litscraper.extraction.catalyst_schema import CatalystExtractionRow, CatalystExtractionRows
 from litscraper.extraction.llm_client import extract_structured, get_client
 from litscraper.extraction.prompts import (
-    ADSORPTION_EXTRACTION_PROMPT,
-    ADSORPTION_VERIFICATION_PROMPT,
-    CATALYST_EXTRACTION_PROMPT,
-    CATALYST_VERIFICATION_PROMPT,
+    ADSORPTION_FLAT_EXTRACTION_PROMPT,
+    ADSORPTION_FLAT_VERIFICATION_PROMPT,
+    CATALYST_FLAT_EXTRACTION_PROMPT,
+    CATALYST_FLAT_VERIFICATION_PROMPT,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _count_catalyst_rows(result: StudiesInPaper) -> int:
-    """One row = one material tested under one reaction condition."""
-    return sum(max(1, len(m.catalytic_performances)) for m in result.LDH_materials)
-
-
-def _count_adsorption_rows(result: AdsorptionExtractionResult) -> int:
-    """One row = one material tested under one adsorption condition."""
-    return sum(max(1, len(m.adsorption_measurements)) for m in result.materials)
-
-
-def extract_catalyst_from_text(document_text: str) -> StudiesInPaper:
+def extract_catalyst_from_text(document_text: str) -> CatalystExtractionRows:
     client = get_client()
-    prompt = CATALYST_EXTRACTION_PROMPT.format(document_text=document_text)
+    prompt = CATALYST_FLAT_EXTRACTION_PROMPT.format(document_text=document_text)
 
-    if settings.do_completeness_check:
-        result = ensure_complete_rows(
-            document_text,
-            prompt,
-            StudiesInPaper,
-            row_kind_hint=(
-                "Each row is one LDH catalyst material tested under one "
-                "reaction condition (temperature, pressure, feed ratio, etc.)."
-            ),
-            count_rows=_count_catalyst_rows,
-            client=client,
-        )
-    else:
-        result = extract_structured(prompt, StudiesInPaper, client=client)
+    result = extract_structured(prompt, CatalystExtractionRows, client=client)
 
-    if settings.do_verification_pass and result.LDH_materials:
-        result.LDH_materials = [
+    if settings.do_verification_pass and result.rows:
+        result.rows = [
             _verify_material(
-                material,
+                row,
                 document_text,
-                verification_prompt=CATALYST_VERIFICATION_PROMPT,
-                response_model=LDHCatalysisStudy,
+                verification_prompt=CATALYST_FLAT_VERIFICATION_PROMPT,
+                response_model=CatalystExtractionRow,
                 client=client,
             )
-            for material in result.LDH_materials
+            for row in result.rows
         ]
     return result
 
 
-def extract_adsorption_from_text(document_text: str) -> AdsorptionExtractionResult:
+def extract_adsorption_from_text(document_text: str) -> AdsorptionExtractionRows:
     client = get_client()
-    prompt = ADSORPTION_EXTRACTION_PROMPT.format(document_text=document_text)
+    prompt = ADSORPTION_FLAT_EXTRACTION_PROMPT.format(document_text=document_text)
 
-    if settings.do_completeness_check:
-        result = ensure_complete_rows(
-            document_text,
-            prompt,
-            AdsorptionExtractionResult,
-            row_kind_hint=(
-                "Each row is one LDH material tested under one adsorption "
-                "condition (temperature, pressure, gas composition, etc.)."
-            ),
-            count_rows=_count_adsorption_rows,
-            client=client,
-        )
-    else:
-        result = extract_structured(prompt, AdsorptionExtractionResult, client=client)
+    result = extract_structured(prompt, AdsorptionExtractionRows, client=client)
 
-    if settings.do_verification_pass and result.materials:
-        result.materials = [
+    if settings.do_verification_pass and result.rows:
+        result.rows = [
             _verify_material(
-                material,
+                row,
                 document_text,
-                verification_prompt=ADSORPTION_VERIFICATION_PROMPT,
-                response_model=AdsorptionMaterial,
+                verification_prompt=ADSORPTION_FLAT_VERIFICATION_PROMPT,
+                response_model=AdsorptionExtractionRow,
                 client=client,
             )
-            for material in result.materials
+            for row in result.rows
         ]
     return result
 
 
 def _verify_material(material, document_text: str, verification_prompt: str, response_model: type, client):
     prompt = verification_prompt.format(
-        material_json=material.model_dump_json(indent=2),
+        row_json=material.model_dump_json(indent=2),
         document_text=document_text,
     )
     try:

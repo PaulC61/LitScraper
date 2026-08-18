@@ -180,35 +180,26 @@ src/litscraper/
     grobid_client.py      # talks to the GROBID docker service
     tei_parser.py          # TEI XML -> ParsedDocument (sections, tables, metadata)
   extraction/
-    catalyst_schema.py       # Pydantic LDHCatalysisStudy / StudiesInPaper schema (ported from ldh_batch_pipeline_catalyst.py)
-    adsorption_schema.py     # Pydantic AdsorptionMaterial schema (ported from patent_EVA_..._adsorption_simplified.py)
+    catalyst_schema.py       # Pydantic CatalystExtractionRow(s) schema (ported from ldh_batch_pipeline_catalyst.py)
+    adsorption_schema.py     # Pydantic AdsorptionExtractionRow(s) schema (ported from patent_EVA_..._adsorption_simplified.py)
     prompts.py               # extraction + verification prompt templates for both passes
     llm_client.py             # auto/dashscope/ollama/deepseek client wrapped with `instructor`
     extractor.py               # per-paper orchestration: runs both the catalyst and adsorption passes
   pipeline/
-    csv_writer.py               # LDHCatalysisStudy / AdsorptionMaterial -> CSV rows
+    csv_writer.py               # Flat extraction rows -> CSV rows
     run.py                        # batch CLI entrypoint
 ```
 
 Each PDF is run through two independent extraction passes (mirroring the
 original project's separate catalyst/adsorption pipeline scripts): one using
-the catalyst-focused `LDHCatalysisStudy` schema, one using the `AdsorptionMaterial`
-schema. Each has its own prompt, its own optional row-level completeness
-check, and its own optional per-material verification pass, and writes to
-its own CSV. Before CSV writing, the optional per-paper **batch assessor**
+the catalyst-focused `CatalystExtractionRow` schema, one using the `AdsorptionExtractionRow`
+schema. Each extraction item is one complete material-condition-measurement
+triplet, so every results-table row is explicit and material metadata is
+repeated when the same material was tested under several conditions. Each
+pass has its own prompt and optional per-material verification pass, and
+writes to its own CSV. Before CSV writing, the optional per-paper **batch assessor**
 (`LITSCRAPER_BATCH_ASSESS=true`, default) compares all extracted records
 within that paper and consolidates near-duplicate material-condition-
 measurement variants into one best-supported record. It preserves genuinely
 distinct material compositions and test conditions; set the toggle to
 `false` to retain every raw extraction variant.
-
-**Row-level completeness check** (`LITSCRAPER_COMPLETENESS_CHECK=true`,
-default): a "row" is one material-measurement pair — one material tested
-under one specific condition (a material tested at 3 temperatures
-contributes 3 rows). LLMs sometimes only extract a table's first or most
-prominent row instead of every one. After the main extraction pass, a
-single follow-up call asks the model to just enumerate every row it can
-find (no full schema); if that count exceeds what was actually extracted,
-the full extraction is retried exactly once, with the missing rows spelled
-out explicitly, keeping whichever of the two attempts produced the most
-rows. This check runs at most once per paper — it is not a loop.
