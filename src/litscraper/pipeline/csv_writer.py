@@ -19,7 +19,7 @@ from litscraper.extraction.adsorption_schema import AdsorptionMaterial
 from litscraper.extraction.catalyst_schema import LDHCatalysisStudy
 
 ADSORPTION_FIELDNAMES = [
-    "doi", "abstract", "synthesis_method", "metal_precursors",
+    "doi", "title", "synthesis_method", "metal_precursors",
     "synthesis_temperature", "synthesis_temperature_units", "ph", "aging_time_hr",
     "exfoliation", "calcination_temp_c",
     "m2_metals_doping", "m2_metals_ratios", "m3_metals_ratios", "m2_m3_ratio", "anions",
@@ -29,7 +29,7 @@ ADSORPTION_FIELDNAMES = [
 ]
 
 CATALYST_FIELDNAMES = [
-    "material_id", "year", "doi", "abstract",
+    "material_id", "year", "doi", "title",
     "synthesis_method", "metal_precursors", "synthesis_temperature", "synthesis_temperature_units",
     "ph", "aging_time_hr", "exfoliation", "calcination_temp", "calcination_temp_units",
     "reduction_pretreatment",
@@ -50,7 +50,7 @@ def material_to_adsorption_rows(material: AdsorptionMaterial) -> list[dict[str, 
 
     base = {
         "doi": meta.doi,
-        "abstract": meta.abstract,
+        "title": meta.title,
         "synthesis_method": _join(synth.method_name),
         "metal_precursors": _join(synth.metal_precursors),
         "synthesis_temperature": synth.temperature,
@@ -91,7 +91,7 @@ def _base_row(material: LDHCatalysisStudy) -> dict[str, Any]:
         "material_id": material.material_id,
         "year": meta.year,
         "doi": meta.doi,
-        "abstract": meta.abstract,
+        "title": meta.title,
         "synthesis_method": _join(synth.method_name),
         "metal_precursors": _join(synth.metal_precursors),
         "synthesis_temperature": synth.temperature,

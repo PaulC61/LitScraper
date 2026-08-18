@@ -20,8 +20,8 @@ Each pass also runs an optional row-level completeness check (see
 `completeness.py`): a "row" is one material-measurement pair (one material
 under one test condition), and a material tested under several conditions
 must contribute one row per condition. The check counts rows against a
-cheap roster call and retries extraction with explicit guidance if the
-first pass under-counted -- this catches the common failure mode where a
+single roster call and, if the first pass under-counted, makes exactly one
+retry with explicit guidance -- this catches the common failure mode where a
 multi-row results table only has its first/most prominent row extracted.
 """
 from __future__ import annotations
@@ -68,7 +68,6 @@ def extract_catalyst_from_text(document_text: str) -> StudiesInPaper:
             ),
             count_rows=_count_catalyst_rows,
             client=client,
-            max_retries=settings.completeness_max_retries,
         )
     else:
         result = extract_structured(prompt, StudiesInPaper, client=client)
@@ -102,7 +101,6 @@ def extract_adsorption_from_text(document_text: str) -> AdsorptionExtractionResu
             ),
             count_rows=_count_adsorption_rows,
             client=client,
-            max_retries=settings.completeness_max_retries,
         )
     else:
         result = extract_structured(prompt, AdsorptionExtractionResult, client=client)

@@ -8,13 +8,15 @@ or adsorption results table). A single material tested under several
 conditions (different temperatures, pressures, feed ratios, etc.)
 contributes one row per condition, not one row per material.
 
-Approach: after the main extraction pass, a cheap "roster" call asks the
-model to simply enumerate every distinct material-measurement row it can
-find in the paper (short labels only, no full schema), which is compared
-against how many rows the main pass actually produced. If the main pass
-under-counted, we retry full extraction (up to `max_retries` times), telling
-the model explicitly which rows are expected, and keep whichever attempt
-produced the most rows.
+Approach: after the main extraction pass, a single cheap "roster" call asks
+the model to enumerate every distinct material-measurement row it can find
+in the paper (short labels only, no full schema) -- this establishes one
+fixed expectation of how many rows there should be. It's compared against
+how many rows the main pass actually produced, and if the main pass
+under-counted, exactly one retry of the full extraction is made, telling the
+model explicitly which rows are expected. Whichever of the two attempts
+produced more rows is kept. The roster is only ever called once per paper,
+and at most one retry is made -- this check does not loop.
 """
 from __future__ import annotations
 
@@ -87,12 +89,11 @@ def ensure_complete_rows(
     row_kind_hint: str,
     count_rows: Callable[[T], int],
     client,
-    max_retries: int = 1,
 ) -> T:
     """Run `extraction_prompt` and check row-level completeness against a
-    lightweight roster call, retrying the full extraction (with explicit
-    guidance) if it under-counted. Returns whichever attempt produced the
-    most rows.
+    single roster call, making at most one retry of the full extraction (with
+    explicit guidance) if it under-counted. Returns whichever of the two
+    attempts produced the most rows.
     """
     best_result = extract_structured(extraction_prompt, response_model, client=client)
     best_rows = count_rows(best_result)
@@ -111,30 +112,26 @@ def ensure_complete_rows(
         return best_result
 
     logger.warning(
-        "Completeness check: extraction produced %d row(s) but the paper appears to report %d; retrying extraction",
+        "Completeness check: extraction produced %d row(s) but the paper appears to report %d; retrying extraction once",
         best_rows, expected_rows,
     )
 
-    attempt = 0
-    while attempt < max_retries and best_rows < expected_rows:
-        attempt += 1
-        retry_prompt = extraction_prompt + COMPLETENESS_RETRY_SUFFIX.format(
-            actual_rows=best_rows,
-            expected_rows=expected_rows,
-            expected_row_labels="\n".join(f"- {row}" for row in roster.rows),
-        )
-        try:
-            candidate = extract_structured(retry_prompt, response_model, client=client)
-        except Exception:
-            logger.exception("Completeness retry pass failed; keeping previous result")
-            break
+    retry_prompt = extraction_prompt + COMPLETENESS_RETRY_SUFFIX.format(
+        actual_rows=best_rows,
+        expected_rows=expected_rows,
+        expected_row_labels="\n".join(f"- {row}" for row in roster.rows),
+    )
+    try:
+        candidate = extract_structured(retry_prompt, response_model, client=client)
         candidate_rows = count_rows(candidate)
         if candidate_rows > best_rows:
             best_result, best_rows = candidate, candidate_rows
+    except Exception:
+        logger.exception("Completeness retry pass failed; keeping first-pass result")
 
     if best_rows < expected_rows:
         logger.warning(
-            "Completeness check: still only %d/%d expected row(s) after retrying; keeping best attempt",
+            "Completeness check: still only %d/%d expected row(s) after one retry; keeping best attempt",
             best_rows, expected_rows,
         )
     return best_result

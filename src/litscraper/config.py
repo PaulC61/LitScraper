@@ -67,11 +67,11 @@ class Settings:
     # --- Pipeline behavior ---
     do_verification_pass: bool = os.environ.get("LITSCRAPER_VERIFY", "true").lower() == "true"
     # Row-level completeness check: makes sure every distinct
-    # material-measurement row (not just distinct materials) got extracted,
-    # retrying with explicit guidance if the model under-counted. See
+    # material-measurement row (not just distinct materials) got extracted.
+    # Runs a single roster call per paper and, if the first pass
+    # under-counted, makes exactly one retry with explicit guidance. See
     # litscraper.extraction.completeness.
     do_completeness_check: bool = os.environ.get("LITSCRAPER_COMPLETENESS_CHECK", "true").lower() == "true"
-    completeness_max_retries: int = int(os.environ.get("LITSCRAPER_COMPLETENESS_MAX_RETRIES", "1"))
     cache_dir: str = os.environ.get("LITSCRAPER_CACHE_DIR", ".cache")
 
 

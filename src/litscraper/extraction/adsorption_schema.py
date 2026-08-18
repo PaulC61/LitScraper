@@ -3,7 +3,7 @@
 Ported field-for-field from the original project's
 `patent_EVA_ldh_batch_pipeline_adsorption_simplified.py` schema, so the new
 pipeline's adsorption CSV stays compatible with that exact data model
-(study abstract/DOI, synthesis conditions, composition ratios/doping,
+(study title/DOI, synthesis conditions, composition ratios/doping,
 impregnation, and per-condition adsorption measurements including gas
 composition and wet/dry air).
 """
@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class AdsorptionStudyMetadata(BaseModel):
     doi: Optional[str] = Field(default=None, description="DOI identifier")
-    abstract: Optional[str] = Field(default=None, description="Study abstract text")
+    title: Optional[str] = Field(default=None, description="Paper title")
 
 
 class AdsorptionSynthesisMethod(BaseModel):

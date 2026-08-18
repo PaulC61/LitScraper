@@ -3,7 +3,7 @@
 Ported field-for-field from the original project's
 `ldh_batch_pipeline_catalyst.py` schema (as informed by the experimentors),
 so the new pipeline's catalyst CSV stays compatible with that exact data
-model: study year/DOI/abstract, synthesis conditions, M2+/M3+ metal ratios
+model: study year/DOI/title, synthesis conditions, M2+/M3+ metal ratios
 and doping, and per-condition catalytic performance (reaction type,
 temperature/pressure, feed composition, CO2 conversion and selectivities).
 """
@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class StudyMetadata(BaseModel):
     year: Optional[int] = Field(default=None, description="Publication year")
     doi: Optional[str] = Field(default=None, description="DOI identifier")
-    abstract: Optional[str] = Field(default=None, description="Abstract from beginning of paper")
+    title: Optional[str] = Field(default=None, description="Paper title")
 
 
 class SynthesisMethod(BaseModel):

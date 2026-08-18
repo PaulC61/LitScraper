@@ -201,9 +201,9 @@ its own CSV.
 default): a "row" is one material-measurement pair — one material tested
 under one specific condition (a material tested at 3 temperatures
 contributes 3 rows). LLMs sometimes only extract a table's first or most
-prominent row instead of every one. After the main extraction pass, a cheap
-follow-up call asks the model to just enumerate every row it can find (no
-full schema); if that count exceeds what was actually extracted, the full
-extraction is retried once (`LITSCRAPER_COMPLETENESS_MAX_RETRIES`, default
-`1`) with the missing rows spelled out explicitly, keeping whichever attempt
-produced the most rows.
+prominent row instead of every one. After the main extraction pass, a
+single follow-up call asks the model to just enumerate every row it can
+find (no full schema); if that count exceeds what was actually extracted,
+the full extraction is retried exactly once, with the missing rows spelled
+out explicitly, keeping whichever of the two attempts produced the most
+rows. This check runs at most once per paper — it is not a loop.

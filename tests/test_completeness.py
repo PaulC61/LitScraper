@@ -70,7 +70,6 @@ def test_retries_when_roster_finds_more_rows_than_extracted(monkeypatch):
         row_kind_hint="hint",
         count_rows=_count_rows,
         client=None,
-        max_retries=1,
     )
 
     assert result is retry_pass
@@ -94,14 +93,13 @@ def test_keeps_best_attempt_if_retry_still_falls_short(monkeypatch):
         row_kind_hint="hint",
         count_rows=_count_rows,
         client=None,
-        max_retries=1,
     )
 
     assert result is retry_pass  # best available, even though incomplete
     assert len(calls) == 3
 
 
-def test_does_not_retry_beyond_max_retries(monkeypatch):
+def test_does_not_retry_more_than_once(monkeypatch):
     first_pass = _fake_result("A")
     roster = MaterialRowRoster(rows=["A", "B", "C"])
     retry1 = _fake_result("A", "B")
@@ -114,11 +112,10 @@ def test_does_not_retry_beyond_max_retries(monkeypatch):
         row_kind_hint="hint",
         count_rows=_count_rows,
         client=None,
-        max_retries=1,
     )
 
     assert result is retry1
-    assert len(calls) == 3  # first pass + roster + exactly 1 retry
+    assert len(calls) == 3  # first pass + roster + exactly 1 retry, never more
 
 
 def test_retry_does_not_regress_below_first_pass(monkeypatch):
@@ -134,7 +131,6 @@ def test_retry_does_not_regress_below_first_pass(monkeypatch):
         row_kind_hint="hint",
         count_rows=_count_rows,
         client=None,
-        max_retries=1,
     )
 
     assert result is first_pass  # keep the better attempt
