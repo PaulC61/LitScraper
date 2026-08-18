@@ -113,6 +113,8 @@ H100/H200 server without editing code. Set `LITSCRAPER_LLM_PROVIDER` in
   already installed — just pull *a* Qwen3 model — run `pixi run python -m
   litscraper.hardware` to see which tag it picked, then:
   ```bash
+  export CUDA_VISIBLE_DEVICES=0,1,2 # synced with `LITSCRAPER_GPU_DEVICE` in .env
+  pixi run python -m litscraper.hardware
   ollama pull qwen3:32b   # substitute the tag hardware.py reports
   ollama serve            # if not already running as a service
   ```
@@ -148,7 +150,7 @@ DEEPSEEK_API_KEY=sk-...
 ## Usage
 
 ```bash
-pixi run extract -- --pdf-dir /path/to/pdfs --out-dir outputs --tag most_relevant
+pixi run extract --pdf-dir /path/to/pdfs --out-dir outputs --tag most_relevant
 ```
 
 This writes `outputs/most_relevant_adsorption.csv`, `outputs/most_relevant_catalyst.csv`,
