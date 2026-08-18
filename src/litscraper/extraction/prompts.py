@@ -11,6 +11,8 @@ Focus on:
 Extract data for every distinct LDH material which receives a unique identifier (including different metal ratios and synthesis conditions).
 Be exhaustive and include all quantitative values with units. If no values are reported for a specific property, set it to null.
 
+IMPORTANT -- multi-row materials: many papers test the same material under several reaction conditions (e.g. a temperature-scan or pressure-scan table). In that case, `catalytic_performances` for that material MUST contain one entry per condition/row, not a single averaged or "most representative" entry. Scan every row of every results table and add a separate entry for each one, even if several rows share the same material.
+
 Paper content (parsed from PDF via GROBID, includes both body text and tables):
 ---
 {document_text}
@@ -33,6 +35,7 @@ Hard constraints to minimize hallucination:
 - Preserve the same material identity and output only one material in the exact schema.
 - Numeric fields must contain numbers only when directly supported by source text.
 - Lists must be empty lists when unknown (never null for list fields).
+- Do not drop or merge existing `catalytic_performances` entries: if the input JSON already lists N conditions, your output must still have at least N entries (add missing ones found in the source text, never collapse distinct conditions into one).
 
 Current material JSON:
 {material_json}
@@ -59,6 +62,8 @@ Extraction policy:
 - If a value is not explicitly reported in the paper, set it to null.
 - Avoid inference and do not invent values.
 
+IMPORTANT -- multi-row materials: many papers test the same material under several adsorption conditions (e.g. a temperature-scan or pressure-scan table). In that case, `adsorption_measurements` for that material MUST contain one entry per condition/row, not a single averaged or "most representative" entry. Scan every row of every results table and add a separate entry for each one, even if several rows share the same material.
+
 Paper content (parsed from PDF via GROBID, includes both body text and tables):
 ---
 {document_text}
@@ -81,6 +86,7 @@ Hard constraints to minimize hallucination:
 - Preserve the same material identity and output only one material in the exact schema.
 - Numeric fields must contain numbers only when directly supported by source text.
 - Output adsorption_measurements as an empty list when no measurement rows are explicitly reported.
+- Do not drop or merge existing `adsorption_measurements` entries: if the input JSON already lists N conditions, your output must still have at least N entries (add missing ones found in the source text, never collapse distinct conditions into one).
 
 Current extracted record (JSON):
 {material_json}

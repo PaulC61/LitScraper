@@ -69,7 +69,15 @@ class AdsorptionMaterial(BaseModel):
     study_metadata: AdsorptionStudyMetadata = Field(default_factory=AdsorptionStudyMetadata)
     synthesis_method: AdsorptionSynthesisMethod = Field(default_factory=AdsorptionSynthesisMethod)
     material_properties: AdsorptionMaterialProperties = Field(default_factory=AdsorptionMaterialProperties)
-    adsorption_measurements: list[AdsorptionMeasurement] = Field(default_factory=list)
+    adsorption_measurements: list[AdsorptionMeasurement] = Field(
+        default_factory=list,
+        description=(
+            "One entry per distinct adsorption condition this material was tested under "
+            "(e.g. each temperature/pressure/gas-composition row of a results table). If "
+            "the paper reports N conditions for this material, this list MUST have N "
+            "entries -- never collapse multiple conditions into a single entry."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod

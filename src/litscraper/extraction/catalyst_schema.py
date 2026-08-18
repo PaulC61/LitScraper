@@ -76,7 +76,15 @@ class LDHCatalysisStudy(BaseModel):
     study_metadata: StudyMetadata = Field(default_factory=StudyMetadata)
     synthesis_conditions: SynthesisMethod = Field(default_factory=SynthesisMethod)
     metal_composition: MetalComposition = Field(default_factory=MetalComposition)
-    catalytic_performances: list[CatalyticPerformance] = Field(default_factory=list)
+    catalytic_performances: list[CatalyticPerformance] = Field(
+        default_factory=list,
+        description=(
+            "One entry per distinct reaction condition this material was tested under "
+            "(e.g. each temperature/pressure/feed-ratio row of a results table). If the "
+            "paper reports N conditions for this material, this list MUST have N entries "
+            "-- never collapse multiple conditions into a single entry."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
