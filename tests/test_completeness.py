@@ -26,6 +26,10 @@ def _fake_result(*labels: str) -> _FakeResult:
     return _FakeResult(rows=[_Row(label=label) for label in labels])
 
 
+def test_roster_coerces_null_rows_to_an_empty_list():
+    assert MaterialRowRoster(rows=None).rows == []
+
+
 def _script(monkeypatch, responses):
     """Patch extract_structured to return `responses` in order, regardless
     of the prompt/response_model passed in."""

@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 from typing import Callable, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from litscraper.extraction.llm_client import extract_structured
 
@@ -46,6 +46,11 @@ class MaterialRowRoster(BaseModel):
             "tested under N conditions contributes N rows."
         ),
     )
+
+    @field_validator("rows", mode="before")
+    @classmethod
+    def _coerce_rows(cls, value):
+        return [] if value is None else value
 
 
 ROSTER_PROMPT_TEMPLATE = """
