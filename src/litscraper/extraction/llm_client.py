@@ -31,12 +31,17 @@ works unchanged on a MacBook and on an H100/H200 server:
 """
 from __future__ import annotations
 
+import logging
+
 import instructor
 import openai
+from instructor.core.exceptions import IncompleteOutputException
 from pydantic import BaseModel
 
 from litscraper import hardware
 from litscraper.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def resolved_provider() -> str:
@@ -122,11 +127,23 @@ def extract_structured(
     """
     provider = resolved_provider()
     client = client or get_client()
-    return client.chat.completions.create(
-        model=_model_name(provider),
-        max_tokens=settings.max_output_tokens,
-        max_retries=settings.llm_max_retries,
-        messages=[{"role": "user", "content": prompt}],
-        response_model=response_model,
-        extra_body=_extra_body(provider),
-    )
+    request = {
+        "model": _model_name(provider),
+        "max_tokens": settings.max_output_tokens,
+        "max_retries": settings.llm_max_retries,
+        "messages": [{"role": "user", "content": prompt}],
+        "response_model": response_model,
+        "extra_body": _extra_body(provider),
+    }
+    try:
+        return client.chat.completions.create(**request)
+    except IncompleteOutputException:
+        recovery_max_tokens = min(max(settings.max_output_tokens * 2, 16384), 32768)
+        if recovery_max_tokens <= settings.max_output_tokens:
+            raise
+        logger.warning(
+            "Structured output reached the %d-token limit; retrying once with %d tokens",
+            settings.max_output_tokens,
+            recovery_max_tokens,
+        )
+        return client.chat.completions.create(**{**request, "max_tokens": recovery_max_tokens})

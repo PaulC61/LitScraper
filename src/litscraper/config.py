@@ -57,7 +57,9 @@ class Settings:
     # all visible GPUs.
     gpu_device: str | None = os.environ.get("LITSCRAPER_GPU_DEVICE") or os.environ.get("CUDA_VISIBLE_DEVICES") or None
 
-    max_output_tokens: int = int(os.environ.get("LITSCRAPER_MAX_OUTPUT_TOKENS", "8192"))
+    # Large result tables need room for every nested measurement row; 8K can
+    # truncate otherwise valid structured output before the JSON is complete.
+    max_output_tokens: int = int(os.environ.get("LITSCRAPER_MAX_OUTPUT_TOKENS", "16384"))
     llm_max_retries: int = int(os.environ.get("LITSCRAPER_LLM_MAX_RETRIES", "3"))
 
     # --- GROBID ---
