@@ -67,17 +67,21 @@ CUDA_VISIBLE_DEVICES=3` before `ollama serve` so Ollama itself only uses it.
    `pixi install` already run. Any changes to files are reflected on the
    host machine and vice versa (it's a bind mount, not a copy).
 
-**Reaching GROBID/Ollama from inside the container:** the Docker CLI is
+**Reaching GROBID from inside the container:** the Docker CLI is
 installed and the host's Docker socket is mounted, so `pixi run grobid-up`/
 `grobid-down` still work unchanged — GROBID runs as a sibling container on
 the host. Because of that, `localhost` inside the devcontainer is *not* the
-same as the host's `localhost`. Point `.env` at the host instead:
+same as the host's `localhost` for GROBID. Point `.env` at the host instead:
 ```
 GROBID_URL=http://host.docker.internal:8070
-OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 ```
 (`host.docker.internal` is wired up via `--add-host` in the template, so this
 works the same on the Mac and on Linux GPU boxes.)
+
+Ollama itself is installed directly in the devcontainer image (CLI + server
+binary), so `ollama serve`/`ollama pull` run inside the container and the
+default `OLLAMA_BASE_URL=http://localhost:11434/v1` in `.env.example` just
+works — no `host.docker.internal` needed for Ollama.
 
 ## LLM backend
 
@@ -105,13 +109,15 @@ H100/H200 server without editing code. Set `LITSCRAPER_LLM_PROVIDER` in
   no API key or per-token cost. The Qwen3 tag is auto-sized to the
   detected GPU memory (`qwen3:32b` on a single 80-141GB card, `qwen3:235b-a22b`
   on a multi-GPU node, smaller tags below that) unless you pin
-  `LITSCRAPER_OLLAMA_MODEL` explicitly. Just install Ollama and pull *a*
-  Qwen3 model — run `pixi run python -m litscraper.hardware` to see which
-  tag it picked, then:
+  `LITSCRAPER_OLLAMA_MODEL` explicitly. In the `.devcontainer`, Ollama is
+  already installed — just pull *a* Qwen3 model — run `pixi run python -m
+  litscraper.hardware` to see which tag it picked, then:
   ```bash
   ollama pull qwen3:32b   # substitute the tag hardware.py reports
   ollama serve            # if not already running as a service
   ```
+  (Outside the devcontainer, install Ollama yourself first: see
+  [ollama.com/download](https://ollama.com/download).)
   On a shared server with GPUs 0-7, set `LITSCRAPER_GPU_DEVICE=3` (or
   `2,3` for several) in `.env` so detection/sizing only considers that
   GPU, and `export CUDA_VISIBLE_DEVICES=3` before `ollama serve` so Ollama

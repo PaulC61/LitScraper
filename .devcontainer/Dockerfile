@@ -10,10 +10,15 @@ RUN apt-get update && apt-get install -y \
     locales xdg-utils wget \
     htop tmux curl \
     libffi-dev libglib2.0-dev openssh-client \
-    ca-certificates
+    ca-certificates zstd
 
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash
 RUN apt-get install git-lfs
+
+# Ollama CLI + server, so a big-GPU devcontainer can run the local Qwen3
+# backend without depending on a host-side install. The official installer
+# extracts a zstd-compressed tarball, hence the "zstd" apt package above.
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # Docker CLI only (no daemon) so GROBID's docker-compose service can be
 # started/stopped from inside the devcontainer via the host's mounted
