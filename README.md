@@ -161,12 +161,21 @@ but replaces the CO2-measurement columns with a single `use_cases` column: one r
 distinct LDH material, listing every application the paper reports for it (e.g.
 `adsorbent CO2; catalyst CO2 hydrogenation; drug delivery`).
 
+Each schema is one LLM pass per paper. Use `--schemas` to run only the ones you
+need — the other CSVs are then neither written nor paid for:
+
+```bash
+pixi run extract --pdf-dir /path/to/pdfs --tag most_relevant --schemas usecase
+pixi run extract --pdf-dir /path/to/pdfs --tag most_relevant --schemas catalyst adsorption
+```
+
 Re-running with the same `--tag` resumes that run in place: it skips PDFs that
-succeeded and yielded at least one material, and retries the rest — papers that
-errored (e.g. `"error": "Request timed out."`) and papers that succeeded but
-extracted zero materials. New results are appended to the same CSVs and the
-manifest is updated (each entry tracks an `attempts` count). Pass `--skip-empty`
-to leave zero-material papers alone, or `--force` to redo everything.
+succeeded and yielded at least one material for every selected schema, and retries
+the rest — papers that errored (e.g. `"error": "Request timed out."`), papers that
+extracted zero materials, and papers that were never run against a newly selected
+schema. New results are appended to the same CSVs and the manifest is updated (each
+entry tracks per-schema counts and an `attempts` count). Pass `--skip-empty` to
+leave zero-material papers alone, or `--force` to redo everything.
 
 If timeouts are frequent, raise `LITSCRAPER_LLM_TIMEOUT_S` and/or
 `LITSCRAPER_LLM_TIMEOUT_RETRIES` (see `.env.example`).

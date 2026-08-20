@@ -1,14 +1,20 @@
-"""CLI entrypoint: batch-process a folder of PDFs into two CSVs.
+"""CLI entrypoint: batch-process a folder of PDFs into one CSV per schema.
 
 Usage:
     pixi run extract -- --pdf-dir LDHCatPDFs --out-dir outputs --tag most_relevant
+    pixi run extract -- --pdf-dir LDHCatPDFs --tag most_relevant --schemas usecase
+
+Three independent extraction schemas are available (`catalyst`, `adsorption`,
+`usecase`); all run by default. Each selected schema costs one LLM pass per
+paper, so `--schemas` is the lever for trading coverage against runtime.
 
 Resumability: a `<tag>_processed.json` manifest in --out-dir records which
 PDF filenames have already been processed. Re-running with the same --tag
-skips papers that succeeded *and* yielded at least one material, and retries
-the rest (errors, and successes that extracted nothing), appending to the
-existing CSVs and manifest. Use --skip-empty to also skip zero-material
-papers, or --force to reprocess everything from scratch.
+skips papers that succeeded *and* yielded at least one material for every
+selected schema, and retries the rest (errors, and successes that extracted
+nothing), appending to the existing CSVs and manifest. Use --skip-empty to
+also skip zero-material papers, or --force to reprocess everything from
+scratch.
 """
 from __future__ import annotations
 
@@ -16,7 +22,9 @@ import argparse
 import json
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
 
 from litscraper.config import settings
 from litscraper.extraction.batch_assessor import (
@@ -45,6 +53,38 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class SchemaSpec:
+    """Everything needed to run one extraction schema end to end."""
+
+    name: str
+    extract: Callable[[str], Any]
+    assess: Callable[[list], list]
+    fieldnames: list[str]
+    to_csv_row: Callable[[Any], dict[str, Any]]
+
+    @property
+    def manifest_key(self) -> str:
+        return f"n_{self.name}_materials"
+
+
+SCHEMAS: dict[str, SchemaSpec] = {
+    "catalyst": SchemaSpec(
+        "catalyst", extract_catalyst_from_text, assess_catalyst_batch,
+        CATALYST_FIELDNAMES, extraction_row_to_catalyst_row,
+    ),
+    "adsorption": SchemaSpec(
+        "adsorption", extract_adsorption_from_text, assess_adsorption_batch,
+        ADSORPTION_FIELDNAMES, extraction_row_to_adsorption_row,
+    ),
+    "usecase": SchemaSpec(
+        "usecase", extract_usecases_from_text, assess_usecase_batch,
+        USECASE_FIELDNAMES, extraction_row_to_usecase_row,
+    ),
+}
+DEFAULT_SCHEMAS = list(SCHEMAS)
+
+
 def _load_manifest(path: Path) -> dict:
     if path.exists():
         return json.loads(path.read_text())
@@ -55,39 +95,42 @@ def _save_manifest(path: Path, manifest: dict) -> None:
     path.write_text(json.dumps(manifest, indent=2, default=str))
 
 
-def _needs_processing(entry: dict, retry_empty: bool) -> bool:
+def _needs_processing(entry: dict, retry_empty: bool, specs: list[SchemaSpec]) -> bool:
     """True if a previously-recorded paper should be attempted again."""
     if entry.get("status") != "ok":
         return True
+    # A schema that never ran for this paper has no recorded count.
+    if any(spec.manifest_key not in entry for spec in specs):
+        return True
     if not retry_empty:
         return False
-    n_found = (
-        entry.get("n_catalyst_materials", 0)
-        + entry.get("n_adsorption_materials", 0)
-        + entry.get("n_usecase_materials", 0)
-    )
-    return n_found == 0
+    return sum(entry.get(spec.manifest_key, 0) for spec in specs) == 0
 
 
-def process_pdf(pdf_path: Path) -> tuple[list, list, list]:
-    """Returns (catalyst_materials, adsorption_materials, usecase_materials)."""
+def process_pdf(pdf_path: Path, specs: list[SchemaSpec] | None = None) -> dict[str, list]:
+    """Returns {schema name: extracted rows} for each selected schema."""
+    specs = specs or list(SCHEMAS.values())
     tei_xml = pdf_to_tei(pdf_path)
     document = parse_tei(tei_xml)
     text = document.to_llm_text()
-    catalyst_result = extract_catalyst_from_text(text)
-    adsorption_result = extract_adsorption_from_text(text)
-    usecase_result = extract_usecases_from_text(text)
-    catalyst_materials = catalyst_result.rows
-    adsorption_materials = adsorption_result.rows
-    usecase_materials = usecase_result.rows
-    if settings.do_batch_assessment:
-        catalyst_materials = assess_catalyst_batch(catalyst_materials)
-        adsorption_materials = assess_adsorption_batch(adsorption_materials)
-        usecase_materials = assess_usecase_batch(usecase_materials)
-    return catalyst_materials, adsorption_materials, usecase_materials
+
+    results: dict[str, list] = {}
+    for spec in specs:
+        rows = spec.extract(text).rows
+        if settings.do_batch_assessment:
+            rows = spec.assess(rows)
+        results[spec.name] = rows
+    return results
 
 
-def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty: bool = True) -> None:
+def run(
+    pdf_dir: Path,
+    out_dir: Path,
+    tag: str,
+    force: bool = False,
+    retry_empty: bool = True,
+    schemas: list[str] | None = None,
+) -> None:
     if not is_alive():
         logger.error(
             "GROBID is not reachable. Start it with `pixi run grobid-up` (or `docker compose up -d`) "
@@ -95,17 +138,21 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty
         )
         sys.exit(1)
 
+    specs = [SCHEMAS[name] for name in (schemas or DEFAULT_SCHEMAS)]
     manifest_path = out_dir / f"{tag}_processed.json"
     manifest = {} if force else _load_manifest(manifest_path)
-
-    adsorption_csv = out_dir / f"{tag}_adsorption.csv"
-    catalyst_csv = out_dir / f"{tag}_catalyst.csv"
-    usecase_csv = out_dir / f"{tag}_usecase.csv"
+    csv_paths = {spec.name: out_dir / f"{tag}_{spec.name}.csv" for spec in specs}
 
     pdf_paths = sorted(pdf_dir.glob("*.pdf"))
-    logger.info("Found %d PDFs in %s", len(pdf_paths), pdf_dir)
+    logger.info(
+        "Found %d PDFs in %s; running schemas: %s",
+        len(pdf_paths), pdf_dir, ", ".join(spec.name for spec in specs),
+    )
 
-    pending = [p for p in pdf_paths if p.name not in manifest or _needs_processing(manifest[p.name], retry_empty)]
+    pending = [
+        p for p in pdf_paths
+        if p.name not in manifest or _needs_processing(manifest[p.name], retry_empty, specs)
+    ]
     if manifest:
         logger.info(
             "Resuming tag %r: %d already complete, %d to (re)process",
@@ -114,11 +161,12 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty
 
     for pdf_path in pending:
         key = pdf_path.name
-        attempts = manifest.get(key, {}).get("attempts", 0) + 1
+        previous = manifest.get(key, {})
+        attempts = previous.get("attempts", 0) + 1
 
         logger.info("Processing %s (attempt %d)", key, attempts)
         try:
-            catalyst_materials, adsorption_materials, usecase_materials = process_pdf(pdf_path)
+            results = process_pdf(pdf_path, specs)
         except GrobidUnavailableError as exc:
             logger.error("GROBID failed on %s: %s", key, exc)
             manifest[key] = {"status": "error", "stage": "grobid", "error": str(exc), "attempts": attempts}
@@ -130,39 +178,25 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty
             _save_manifest(manifest_path, manifest)
             continue
 
-        append_rows(
-            catalyst_csv,
-            CATALYST_FIELDNAMES,
-            [extraction_row_to_catalyst_row(row) for row in catalyst_materials],
-        )
-        append_rows(
-            adsorption_csv,
-            ADSORPTION_FIELDNAMES,
-            [extraction_row_to_adsorption_row(row) for row in adsorption_materials],
-        )
-        append_rows(
-            usecase_csv,
-            USECASE_FIELDNAMES,
-            [extraction_row_to_usecase_row(row) for row in usecase_materials],
-        )
+        for spec in specs:
+            append_rows(
+                csv_paths[spec.name],
+                spec.fieldnames,
+                [spec.to_csv_row(row) for row in results[spec.name]],
+            )
 
-        manifest[key] = {
-            "status": "ok",
-            "n_catalyst_materials": len(catalyst_materials),
-            "n_adsorption_materials": len(adsorption_materials),
-            "n_usecase_materials": len(usecase_materials),
-            "attempts": attempts,
-        }
+        # Counts from schemas not selected this run are carried over.
+        counts = {k: v for k, v in previous.items() if k.startswith("n_")}
+        counts.update({spec.manifest_key: len(results[spec.name]) for spec in specs})
+        manifest[key] = {"status": "ok", **counts, "attempts": attempts}
         _save_manifest(manifest_path, manifest)
         logger.info(
-            "Wrote %d catalyst + %d adsorption + %d use-case materials from %s",
-            len(catalyst_materials), len(adsorption_materials), len(usecase_materials), key,
+            "Wrote %s from %s",
+            " + ".join(f"{len(results[spec.name])} {spec.name}" for spec in specs),
+            key,
         )
 
-    logger.info(
-        "Done. Adsorption CSV: %s | Catalyst CSV: %s | Use-case CSV: %s",
-        adsorption_csv, catalyst_csv, usecase_csv,
-    )
+    logger.info("Done. %s", " | ".join(f"{name}: {path}" for name, path in csv_paths.items()))
 
 
 def main() -> None:
@@ -176,6 +210,17 @@ def main() -> None:
         action="store_true",
         help="Don't retry papers that previously succeeded but extracted zero materials.",
     )
+    parser.add_argument(
+        "--schemas",
+        nargs="+",
+        choices=DEFAULT_SCHEMAS,
+        default=DEFAULT_SCHEMAS,
+        metavar="SCHEMA",
+        help=(
+            "Which extraction schemas to run (one LLM pass each): "
+            f"{', '.join(DEFAULT_SCHEMAS)}. Default: all."
+        ),
+    )
     args = parser.parse_args()
 
     run(
@@ -184,6 +229,7 @@ def main() -> None:
         tag=args.tag,
         force=args.force,
         retry_empty=not args.skip_empty,
+        schemas=list(dict.fromkeys(args.schemas)),
     )
 
 
