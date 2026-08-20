@@ -19,16 +19,26 @@ import sys
 from pathlib import Path
 
 from litscraper.config import settings
-from litscraper.extraction.batch_assessor import assess_adsorption_batch, assess_catalyst_batch
-from litscraper.extraction.extractor import extract_adsorption_from_text, extract_catalyst_from_text
+from litscraper.extraction.batch_assessor import (
+    assess_adsorption_batch,
+    assess_catalyst_batch,
+    assess_usecase_batch,
+)
+from litscraper.extraction.extractor import (
+    extract_adsorption_from_text,
+    extract_catalyst_from_text,
+    extract_usecases_from_text,
+)
 from litscraper.pdf_parsing.grobid_client import GrobidUnavailableError, is_alive, pdf_to_tei
 from litscraper.pdf_parsing.tei_parser import parse_tei
 from litscraper.pipeline.csv_writer import (
     ADSORPTION_FIELDNAMES,
     CATALYST_FIELDNAMES,
+    USECASE_FIELDNAMES,
     append_rows,
     extraction_row_to_adsorption_row,
     extraction_row_to_catalyst_row,
+    extraction_row_to_usecase_row,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -51,23 +61,30 @@ def _needs_processing(entry: dict, retry_empty: bool) -> bool:
         return True
     if not retry_empty:
         return False
-    n_found = entry.get("n_catalyst_materials", 0) + entry.get("n_adsorption_materials", 0)
+    n_found = (
+        entry.get("n_catalyst_materials", 0)
+        + entry.get("n_adsorption_materials", 0)
+        + entry.get("n_usecase_materials", 0)
+    )
     return n_found == 0
 
 
-def process_pdf(pdf_path: Path) -> tuple[list, list]:
-    """Returns (catalyst_materials, adsorption_materials)."""
+def process_pdf(pdf_path: Path) -> tuple[list, list, list]:
+    """Returns (catalyst_materials, adsorption_materials, usecase_materials)."""
     tei_xml = pdf_to_tei(pdf_path)
     document = parse_tei(tei_xml)
     text = document.to_llm_text()
     catalyst_result = extract_catalyst_from_text(text)
     adsorption_result = extract_adsorption_from_text(text)
+    usecase_result = extract_usecases_from_text(text)
     catalyst_materials = catalyst_result.rows
     adsorption_materials = adsorption_result.rows
+    usecase_materials = usecase_result.rows
     if settings.do_batch_assessment:
         catalyst_materials = assess_catalyst_batch(catalyst_materials)
         adsorption_materials = assess_adsorption_batch(adsorption_materials)
-    return catalyst_materials, adsorption_materials
+        usecase_materials = assess_usecase_batch(usecase_materials)
+    return catalyst_materials, adsorption_materials, usecase_materials
 
 
 def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty: bool = True) -> None:
@@ -83,6 +100,7 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty
 
     adsorption_csv = out_dir / f"{tag}_adsorption.csv"
     catalyst_csv = out_dir / f"{tag}_catalyst.csv"
+    usecase_csv = out_dir / f"{tag}_usecase.csv"
 
     pdf_paths = sorted(pdf_dir.glob("*.pdf"))
     logger.info("Found %d PDFs in %s", len(pdf_paths), pdf_dir)
@@ -100,7 +118,7 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty
 
         logger.info("Processing %s (attempt %d)", key, attempts)
         try:
-            catalyst_materials, adsorption_materials = process_pdf(pdf_path)
+            catalyst_materials, adsorption_materials, usecase_materials = process_pdf(pdf_path)
         except GrobidUnavailableError as exc:
             logger.error("GROBID failed on %s: %s", key, exc)
             manifest[key] = {"status": "error", "stage": "grobid", "error": str(exc), "attempts": attempts}
@@ -122,20 +140,29 @@ def run(pdf_dir: Path, out_dir: Path, tag: str, force: bool = False, retry_empty
             ADSORPTION_FIELDNAMES,
             [extraction_row_to_adsorption_row(row) for row in adsorption_materials],
         )
+        append_rows(
+            usecase_csv,
+            USECASE_FIELDNAMES,
+            [extraction_row_to_usecase_row(row) for row in usecase_materials],
+        )
 
         manifest[key] = {
             "status": "ok",
             "n_catalyst_materials": len(catalyst_materials),
             "n_adsorption_materials": len(adsorption_materials),
+            "n_usecase_materials": len(usecase_materials),
             "attempts": attempts,
         }
         _save_manifest(manifest_path, manifest)
         logger.info(
-            "Wrote %d catalyst + %d adsorption materials from %s",
-            len(catalyst_materials), len(adsorption_materials), key,
+            "Wrote %d catalyst + %d adsorption + %d use-case materials from %s",
+            len(catalyst_materials), len(adsorption_materials), len(usecase_materials), key,
         )
 
-    logger.info("Done. Adsorption CSV: %s | Catalyst CSV: %s", adsorption_csv, catalyst_csv)
+    logger.info(
+        "Done. Adsorption CSV: %s | Catalyst CSV: %s | Use-case CSV: %s",
+        adsorption_csv, catalyst_csv, usecase_csv,
+    )
 
 
 def main() -> None:

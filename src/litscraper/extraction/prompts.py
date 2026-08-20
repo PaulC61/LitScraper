@@ -132,6 +132,69 @@ Paper content:
 """.strip()
 
 
+USECASE_FLAT_EXTRACTION_PROMPT = """
+Identify every distinct Layered Double Hydroxide (LDH) material in the paper
+and list all of its use cases.
+
+Return a top-level `rows` list with exactly one item per distinct material.
+Never split one material across multiple items and never merge two different
+materials into one item.
+
+For each material, fill `use_cases` with every application the paper reports
+the material being used for, evaluated for, or explicitly proposed for. Use
+short "<role> <target>" phrases, e.g. "adsorbent CO2", "adsorbent heavy
+metals", "catalyst CO2 hydrogenation", "paint stabilizer", "drug delivery".
+List each distinct use case once and leave the list empty when the paper
+reports none.
+
+Also fill the study metadata, synthesis, and composition fields for the
+material. If a value is not explicitly reported, set it to null; lists must
+be empty when unknown. Do not invent values or infer use cases that the
+paper does not state.
+
+Paper content:
+---
+{document_text}
+---
+""".strip()
+
+
+USECASE_FLAT_VERIFICATION_PROMPT = """
+Verify this single LDH material row against the source paper. Return exactly
+one row object, preserving its material identity. Correct values only when
+directly supported by the text, and add any reported use case that is
+missing from `use_cases`. Do not merge rows, add other materials, or invent
+values or use cases.
+
+Current row:
+{row_json}
+
+Source paper:
+---
+{document_text}
+---
+""".strip()
+
+
+USECASE_BATCH_ASSESSMENT_PROMPT = """
+You are the batch assessor for LDH use-case extraction records from ONE
+paper. The JSON batch below may contain multiple LLM views of the same
+material. Consolidate only those duplicates.
+
+Return the same flat `rows` schema with one best-supported record per unique
+material, unioning the `use_cases` of the merged duplicates and dropping
+repeated or near-identical phrasings of the same use case. For the remaining
+fields, retain the most complete directly reported values across the
+variants. Never invent values. Do not merge records that differ in material
+identity or composition.
+
+Extracted batch JSON:
+---
+{batch_json}
+---
+""".strip()
+
+
 CATALYST_FLAT_VERIFICATION_PROMPT = """
 Verify this single catalyst material-condition-performance row against the
 source paper. Return exactly one row object, preserving its material and

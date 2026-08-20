@@ -9,7 +9,9 @@ from litscraper.extraction.llm_client import extract_structured, get_client
 from litscraper.extraction.prompts import (
     ADSORPTION_BATCH_ASSESSMENT_PROMPT,
     CATALYST_BATCH_ASSESSMENT_PROMPT,
+    USECASE_BATCH_ASSESSMENT_PROMPT,
 )
+from litscraper.extraction.usecase_schema import UseCaseExtractionRow, UseCaseExtractionRows
 
 logger = logging.getLogger(__name__)
 
@@ -45,4 +47,21 @@ def assess_adsorption_batch(rows: list[AdsorptionExtractionRow]) -> list[Adsorpt
         return assessed.rows
     except Exception:
         logger.exception("Adsorption batch assessment failed; keeping unassessed records")
+        return rows
+
+
+def assess_usecase_batch(rows: list[UseCaseExtractionRow]) -> list[UseCaseExtractionRow]:
+    """Return one best-supported record per unique material, with use cases unioned."""
+    if not rows:
+        return rows
+    result = UseCaseExtractionRows(rows=rows)
+    try:
+        assessed = extract_structured(
+            USECASE_BATCH_ASSESSMENT_PROMPT.format(batch_json=result.model_dump_json(indent=2)),
+            UseCaseExtractionRows,
+            client=get_client(),
+        )
+        return assessed.rows
+    except Exception:
+        logger.exception("Use-case batch assessment failed; keeping unassessed records")
         return rows

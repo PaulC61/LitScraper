@@ -33,7 +33,10 @@ from litscraper.extraction.prompts import (
     ADSORPTION_FLAT_VERIFICATION_PROMPT,
     CATALYST_FLAT_EXTRACTION_PROMPT,
     CATALYST_FLAT_VERIFICATION_PROMPT,
+    USECASE_FLAT_EXTRACTION_PROMPT,
+    USECASE_FLAT_VERIFICATION_PROMPT,
 )
+from litscraper.extraction.usecase_schema import UseCaseExtractionRow, UseCaseExtractionRows
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,26 @@ def extract_adsorption_from_text(document_text: str) -> AdsorptionExtractionRows
                 document_text,
                 verification_prompt=ADSORPTION_FLAT_VERIFICATION_PROMPT,
                 response_model=AdsorptionExtractionRow,
+                client=client,
+            )
+            for row in result.rows
+        ]
+    return result
+
+
+def extract_usecases_from_text(document_text: str) -> UseCaseExtractionRows:
+    client = get_client()
+    prompt = USECASE_FLAT_EXTRACTION_PROMPT.format(document_text=document_text)
+
+    result = extract_structured(prompt, UseCaseExtractionRows, client=client)
+
+    if settings.do_verification_pass and result.rows:
+        result.rows = [
+            _verify_material(
+                row,
+                document_text,
+                verification_prompt=USECASE_FLAT_VERIFICATION_PROMPT,
+                response_model=UseCaseExtractionRow,
                 client=client,
             )
             for row in result.rows

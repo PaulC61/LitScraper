@@ -154,7 +154,12 @@ pixi run extract --pdf-dir /path/to/pdfs --out-dir outputs --tag most_relevant
 ```
 
 This writes `outputs/most_relevant_adsorption.csv`, `outputs/most_relevant_catalyst.csv`,
-and `outputs/most_relevant_processed.json`.
+`outputs/most_relevant_usecase.csv`, and `outputs/most_relevant_processed.json`.
+
+The use-case CSV mirrors the adsorption CSV's material/synthesis/composition columns
+but replaces the CO2-measurement columns with a single `use_cases` column: one row per
+distinct LDH material, listing every application the paper reports for it (e.g.
+`adsorbent CO2; catalyst CO2 hydrogenation; drug delivery`).
 
 Re-running with the same `--tag` resumes that run in place: it skips PDFs that
 succeeded and yielded at least one material, and retries the rest — papers that
