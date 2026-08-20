@@ -47,7 +47,7 @@ ADSORPTION_EXTRACTION_PROMPT = """
 Extract detailed information about Layered Double Hydroxides (LDHs) used for CO2 adsorption from the research paper.
 
 Focus on:
-1. Study identity fields matching the adsorption table format: title and DOI.
+1. Study identity fields matching the adsorption table format: material name/label, publication year, title and DOI.
 2. Material identity and synthesis: preparation method (list every step in order if synthesis involves multiple sequential steps, e.g., co-precipitation followed by exfoliation), calcination temperature.
 3. Material properties: metal composition ratios/doping (M2+, M3+), anions, and impregnation.
 4. Adsorption test conditions and outcomes: adsorption temperature, pressure, gas composition, and CO2 adsorption capacity.

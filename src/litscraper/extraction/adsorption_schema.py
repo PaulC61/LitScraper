@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AdsorptionStudyMetadata(BaseModel):
+    year: Optional[int] = Field(default=None, description="Publication year")
     doi: Optional[str] = Field(default=None, description="DOI identifier")
     title: Optional[str] = Field(default=None, description="Paper title")
 
@@ -68,6 +69,7 @@ class AdsorptionMeasurement(BaseModel):
 class AdsorptionExtractionRow(BaseModel):
     """One complete material-condition-measurement triplet."""
 
+    material_id: Optional[str] = Field(default=None, description="Material name/label as used in the paper (e.g., 'Mg3Al-CO3', 'CuMgAl-2')")
     study_metadata: AdsorptionStudyMetadata = Field(default_factory=AdsorptionStudyMetadata)
     synthesis_method: AdsorptionSynthesisMethod = Field(default_factory=AdsorptionSynthesisMethod)
     material_properties: AdsorptionMaterialProperties = Field(default_factory=AdsorptionMaterialProperties)

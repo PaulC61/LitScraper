@@ -16,7 +16,8 @@ from litscraper.extraction.adsorption_schema import AdsorptionExtractionRow
 from litscraper.extraction.catalyst_schema import CatalystExtractionRow
 
 ADSORPTION_FIELDNAMES = [
-    "doi", "title", "synthesis_method", "metal_precursors",
+    "material_id", "year", "doi", "title",
+    "synthesis_method", "metal_precursors",
     "synthesis_temperature", "synthesis_temperature_units", "ph", "aging_time_hr",
     "exfoliation", "calcination_temp_c",
     "m2_metals_doping", "m2_metals_ratios", "m3_metals_ratios", "m2_m3_ratio", "anions",
@@ -47,6 +48,8 @@ def extraction_row_to_adsorption_row(row: AdsorptionExtractionRow) -> dict[str, 
     props = row.material_properties
     measurement = row.measurement
     return {
+        "material_id": row.material_id,
+        "year": meta.year,
         "doi": meta.doi,
         "title": meta.title,
         "synthesis_method": _join(synth.method_name),
