@@ -60,7 +60,18 @@ class Settings:
     # Large result tables need room for every nested measurement row; 8K can
     # truncate otherwise valid structured output before the JSON is complete.
     max_output_tokens: int = int(os.environ.get("LITSCRAPER_MAX_OUTPUT_TOKENS", "16384"))
+    # Schema-validation retries handled by instructor (bad JSON / wrong shape).
     llm_max_retries: int = int(os.environ.get("LITSCRAPER_LLM_MAX_RETRIES", "3"))
+    # Per-request wall-clock budget. Full-text extraction prompts on a large
+    # Qwen3 model can legitimately run for many minutes, so the OpenAI SDK's
+    # 10-minute default is too tight and surfaces as "Request timed out.".
+    llm_timeout_s: float = float(os.environ.get("LITSCRAPER_LLM_TIMEOUT_S", "1800"))
+    # Transport-level retries inside the OpenAI SDK (connection resets, 429/5xx).
+    llm_transport_retries: int = int(os.environ.get("LITSCRAPER_LLM_TRANSPORT_RETRIES", "3"))
+    # Extra retries we drive ourselves for timeouts/connection errors, since the
+    # SDK does not retry a request that exhausted its timeout budget.
+    llm_timeout_retries: int = int(os.environ.get("LITSCRAPER_LLM_TIMEOUT_RETRIES", "3"))
+    llm_retry_backoff_s: float = float(os.environ.get("LITSCRAPER_LLM_RETRY_BACKOFF_S", "15"))
 
     # --- GROBID ---
     grobid_url: str = os.environ.get("GROBID_URL", "http://localhost:8070")

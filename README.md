@@ -154,8 +154,17 @@ pixi run extract --pdf-dir /path/to/pdfs --out-dir outputs --tag most_relevant
 ```
 
 This writes `outputs/most_relevant_adsorption.csv`, `outputs/most_relevant_catalyst.csv`,
-and `outputs/most_relevant_processed.json`. Re-running with the same `--tag` skips
-PDFs already recorded as processed; pass `--force` to redo everything.
+and `outputs/most_relevant_processed.json`.
+
+Re-running with the same `--tag` resumes that run in place: it skips PDFs that
+succeeded and yielded at least one material, and retries the rest — papers that
+errored (e.g. `"error": "Request timed out."`) and papers that succeeded but
+extracted zero materials. New results are appended to the same CSVs and the
+manifest is updated (each entry tracks an `attempts` count). Pass `--skip-empty`
+to leave zero-material papers alone, or `--force` to redo everything.
+
+If timeouts are frequent, raise `LITSCRAPER_LLM_TIMEOUT_S` and/or
+`LITSCRAPER_LLM_TIMEOUT_RETRIES` (see `.env.example`).
 
 ## Testing
 

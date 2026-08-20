@@ -32,6 +32,7 @@ works unchanged on a MacBook and on an H100/H200 server:
 from __future__ import annotations
 
 import logging
+import time
 
 import instructor
 import openai
@@ -42,6 +43,15 @@ from litscraper import hardware
 from litscraper.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Errors that are worth re-sending the whole request for: the model never
+# produced a usable response, but the backend itself is probably still fine.
+RETRYABLE_ERRORS = (
+    openai.APITimeoutError,
+    openai.APIConnectionError,
+    openai.InternalServerError,
+    openai.RateLimitError,
+)
 
 
 def resolved_provider() -> str:
@@ -56,6 +66,8 @@ def get_client() -> instructor.Instructor:
         raw_client = openai.OpenAI(
             api_key=settings.ollama_api_key,
             base_url=settings.ollama_base_url,
+            timeout=settings.llm_timeout_s,
+            max_retries=settings.llm_transport_retries,
         )
         return instructor.from_openai(raw_client, mode=instructor.Mode.TOOLS)
 
@@ -69,6 +81,8 @@ def get_client() -> instructor.Instructor:
         raw_client = openai.OpenAI(
             api_key=settings.dashscope_api_key,
             base_url=settings.dashscope_base_url,
+            timeout=settings.llm_timeout_s,
+            max_retries=settings.llm_transport_retries,
         )
         return instructor.from_openai(raw_client, mode=instructor.Mode.TOOLS)
 
@@ -80,6 +94,8 @@ def get_client() -> instructor.Instructor:
         raw_client = openai.OpenAI(
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
+            timeout=settings.llm_timeout_s,
+            max_retries=settings.llm_transport_retries,
         )
         return instructor.from_openai(raw_client, mode=instructor.Mode.MD_JSON)
 
@@ -123,7 +139,8 @@ def extract_structured(
     instance of `response_model`.
 
     instructor automatically retries with the validation error fed back to
-    the model if the first response doesn't satisfy the schema.
+    the model if the first response doesn't satisfy the schema; timeouts and
+    transient backend failures are retried here with exponential backoff.
     """
     provider = resolved_provider()
     client = client or get_client()
@@ -136,7 +153,7 @@ def extract_structured(
         "extra_body": _extra_body(provider),
     }
     try:
-        return client.chat.completions.create(**request)
+        return _create_with_retries(client, request)
     except IncompleteOutputException:
         recovery_max_tokens = min(max(settings.max_output_tokens * 2, 16384), 32768)
         if recovery_max_tokens <= settings.max_output_tokens:
@@ -146,4 +163,21 @@ def extract_structured(
             settings.max_output_tokens,
             recovery_max_tokens,
         )
-        return client.chat.completions.create(**{**request, "max_tokens": recovery_max_tokens})
+        return _create_with_retries(client, {**request, "max_tokens": recovery_max_tokens})
+
+
+def _create_with_retries(client: instructor.Instructor, request: dict) -> BaseModel:
+    attempts = max(settings.llm_timeout_retries, 0) + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return client.chat.completions.create(**request)
+        except RETRYABLE_ERRORS as exc:
+            if attempt == attempts:
+                raise
+            delay = settings.llm_retry_backoff_s * (2 ** (attempt - 1))
+            logger.warning(
+                "LLM request failed (%s: %s); retry %d/%d in %.0fs",
+                type(exc).__name__, exc, attempt, attempts - 1, delay,
+            )
+            time.sleep(delay)
+    raise AssertionError("unreachable")
